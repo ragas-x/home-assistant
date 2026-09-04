@@ -541,7 +541,7 @@ function PanchangaCard({ snapshot }: { snapshot: PanchangaSnapshot }) {
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/55 px-3 py-2.5 text-[11px] font-semibold text-[#626866]"><Sunrise className="size-4" /> Sunrise {today.sunrise} · Sunset {today.sunset}</div>
+      <div className="panchanga-sunrise mt-3 flex items-center gap-2 rounded-xl bg-white/55 px-3 py-2.5 text-[11px] font-semibold text-[#626866]"><Sunrise className="size-4" /> Sunrise {today.sunrise} · Sunset {today.sunset}</div>
     </article>
   );
 }

@@ -115,16 +115,20 @@
   .kitchen-mode { height: 100dvh; min-height: 0; overflow: hidden; }
   .kitchen-mode .kitchen-header { height: 64px; }
   .kitchen-view { height: calc(100dvh - 64px); grid-template-columns: minmax(0, 1.7fr) minmax(290px, .78fr); gap: 14px; padding: 14px 18px 16px; }
+  .kitchen-view > section { display: flex; min-height: 0; flex-direction: column; }
+  .kitchen-view > aside { min-height: 0; }
   .kitchen-greeting { margin-bottom: 12px; }
   .kitchen-view .meal-card { min-height: 146px; padding: 13px; border-radius: 18px; }
   .kitchen-view .meal-card-content { margin-top: 18px; }
   .kitchen-view .meal-card-title { font-size: 18px; }
   .kitchen-view .meal-card-change { margin-top: 8px; }
-  .kitchen-view .secondary-grid { margin-top: 12px; gap: 12px; }
+  .kitchen-view .secondary-grid { flex: 1; margin-top: 12px; gap: 12px; }
+  .kitchen-view .secondary-grid > .surface-card { height: 100%; }
   .kitchen-view .surface-card { padding: 13px; border-radius: 18px; }
   .kitchen-view .surface-card [class*='py-3.5'] { padding-top: 9px; padding-bottom: 9px; }
-  .kitchen-view .panchanga-card { padding: 16px; border-radius: 20px; }
+  .kitchen-view .panchanga-card { display: flex; height: 100%; flex-direction: column; padding: 16px; border-radius: 20px; }
   .kitchen-view .festival-alert { min-height: 40px; padding: 6px 8px; }
   .kitchen-view .panchanga-card [class*='mt-4'] { margin-top: 11px; }
   .kitchen-view .panchanga-card [class*='mt-3'] { margin-top: 8px; }
+  .kitchen-view .panchanga-sunrise { margin-top: auto; }
 }
