@@ -1,0 +1,130 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-noto-kannada);
+  --font-display: var(--font-anek-kannada);
+  --radius-sm: calc(var(--radius) * .6);
+  --radius-md: calc(var(--radius) * .8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+}
+
+:root {
+  --background: #f6f5f1;
+  --foreground: #292e2f;
+  --card: #fcfbf8;
+  --card-foreground: #292e2f;
+  --popover: #fcfbf8;
+  --popover-foreground: #292e2f;
+  --primary: #587984;
+  --primary-foreground: #f9fbfb;
+  --secondary: #ecefec;
+  --secondary-foreground: #465355;
+  --muted: #eeece7;
+  --muted-foreground: #747775;
+  --accent: #e3eef0;
+  --accent-foreground: #4e6970;
+  --destructive: #a85f5f;
+  --border: #e2dfd8;
+  --input: #dddcd7;
+  --ring: #7da2aa;
+  --radius: 0.9rem;
+}
+
+.dark {
+  --background: #1d292c;
+  --foreground: #e9f1f2;
+  --card: #263438;
+  --card-foreground: #e9f1f2;
+  --popover: #263438;
+  --popover-foreground: #e9f1f2;
+  --primary: #a5d1d8;
+  --primary-foreground: #203034;
+  --secondary: #33464b;
+  --secondary-foreground: #deeaec;
+  --muted: #304146;
+  --muted-foreground: #a5b8bc;
+  --accent: #3c5359;
+  --accent-foreground: #cce5ea;
+  --destructive: #d28585;
+  --border: rgb(228 242 245 / 13%);
+  --input: rgb(228 242 245 / 17%);
+  --ring: #89b8c2;
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { font-family: var(--font-noto-kannada), ui-sans-serif, sans-serif; }
+  body { @apply bg-background text-foreground; font-family: inherit; font-weight: 500; }
+  button, input, textarea, select { font: inherit; }
+  button, label { -webkit-tap-highlight-color: transparent; }
+}
+
+.font-display { font-family: var(--font-anek-kannada), var(--font-noto-kannada), sans-serif; }
+.meal-card { min-height: 196px; border-radius: 20px; padding: 16px; overflow: hidden; position: relative; box-shadow: inset 0 0 0 1px rgb(54 61 62 / 7%); }
+.meal-sun { background: #eeece7; color: #303536; }
+.meal-leaf { background: #e9ede9; color: #303736; }
+.meal-plum { background: #ecebed; color: #343438; }
+.meal-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; background: rgb(255 255 255 / 48%); }
+.meal-dot-sun { background: #7799a0; }
+.meal-dot-leaf { background: #899b8d; }
+.meal-dot-plum { background: #96939c; }
+.surface-card { border: 1px solid color-mix(in oklch, var(--border), transparent 20%); border-radius: 22px; background: color-mix(in oklch, var(--card), transparent 3%); padding: 19px; box-shadow: 0 12px 35px rgb(46 51 52 / 5%); }
+.section-icon { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 11px; background: var(--secondary); color: var(--primary); }
+.panchanga-card { border-radius: 24px; padding: 22px; background: #eeebe4; color: #3d4140; box-shadow: inset 0 0 0 1px rgb(67 65 59 / 7%); }
+.festival-alert { display: flex; align-items: center; gap: 10px; min-height: 48px; border: 1px solid rgb(117 105 80 / 10%); border-radius: 13px; background: #e9e2d4; padding: 8px 10px; }
+.festival-alert-today { background: #e4d8c3; }
+.festival-alert-icon { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: rgb(255 255 255 / 48%); color: #76674e; }
+.floating-voice-button { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 40; display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid rgb(255 255 255 / 16%); border-radius: 999px; color: #f4f8f8; background: #2d3434; box-shadow: 0 10px 26px rgb(37 42 42 / 20%), 0 0 0 5px rgb(150 230 252 / 7%); transition: transform .18s ease, box-shadow .18s ease; }
+.floating-voice-button:hover { transform: translateY(-2px); box-shadow: 0 13px 30px rgb(37 42 42 / 22%), 0 0 0 6px rgb(150 230 252 / 9%); }
+.floating-voice-button:active { transform: scale(.96); }
+.floating-voice-button.is-listening { color: #30474d; background: #b9dce2; box-shadow: 0 0 0 7px rgb(150 230 252 / 13%), 0 12px 28px rgb(37 42 42 / 24%); animation: voice-pulse 1.4s ease-in-out infinite; }
+
+@keyframes voice-pulse {
+  50% { box-shadow: 0 0 0 12px rgb(150 230 252 / 6%), 0 12px 28px rgb(37 42 42 / 24%); }
+}
+
+@media (max-width: 1023px) { .meal-card { min-height: 178px; } }
+@media (max-width: 767px) { .meal-card { min-height: 170px; } }
+
+@media (min-width: 1000px) and (max-height: 820px) {
+  .kitchen-mode { height: 100dvh; min-height: 0; overflow: hidden; }
+  .kitchen-mode .kitchen-header { height: 64px; }
+  .kitchen-view { height: calc(100dvh - 64px); grid-template-columns: minmax(0, 1.7fr) minmax(290px, .78fr); gap: 14px; padding: 14px 18px 16px; }
+  .kitchen-greeting { margin-bottom: 12px; }
+  .kitchen-view .meal-card { min-height: 146px; padding: 13px; border-radius: 18px; }
+  .kitchen-view .meal-card-content { margin-top: 18px; }
+  .kitchen-view .meal-card-title { font-size: 18px; }
+  .kitchen-view .meal-card-change { margin-top: 8px; }
+  .kitchen-view .secondary-grid { margin-top: 12px; gap: 12px; }
+  .kitchen-view .surface-card { padding: 13px; border-radius: 18px; }
+  .kitchen-view .surface-card [class*='py-3.5'] { padding-top: 9px; padding-bottom: 9px; }
+  .kitchen-view .panchanga-card { padding: 16px; border-radius: 20px; }
+  .kitchen-view .festival-alert { min-height: 40px; padding: 6px 8px; }
+  .kitchen-view .panchanga-card [class*='mt-4'] { margin-top: 11px; }
+  .kitchen-view .panchanga-card [class*='mt-3'] { margin-top: 8px; }
+}
