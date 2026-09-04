@@ -18,4 +18,4 @@ COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start", "--", "--ip", "0.0.0.0", "--port", "3000", "--persist-to", "/data/wrangler"]
+CMD ["sh", "-c", "npx wrangler dev --config dist/server/wrangler.json --ip 0.0.0.0 --port 3000 --persist-to /data/wrangler --var \"SUPABASE_URL:$SUPABASE_URL\" --var \"SUPABASE_SERVICE_ROLE_KEY:$SUPABASE_SERVICE_ROLE_KEY\""]

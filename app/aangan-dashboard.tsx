@@ -2,8 +2,12 @@
 
 import { SyntheticEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeft,
+  ArrowRight,
   Bell,
+  BellRing,
   CalendarDays,
+  CalendarRange,
   Check,
   ChevronRight,
   CloudSun,
@@ -20,6 +24,7 @@ import {
   Sunrise,
   TimerReset,
   UtensilsCrossed,
+  Volume2,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -32,7 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import type { PanchangaSnapshot } from '@/lib/panchanga';
+import type { PanchangaMonthDay, PanchangaSnapshot } from '@/lib/panchanga';
 
 type Meal = { id: string; day: string; slot: 'breakfast' | 'lunch' | 'dinner'; dish: string; time: string };
 type ShoppingItem = { id: string; name: string; completed: number };
@@ -57,19 +62,11 @@ type RecognitionLike = {
 
 const HOUSEHOLD_TIME_ZONE = 'Asia/Kolkata';
 
-function createStarterData(initialNow: string): DashboardData {
-  const timestamp = new Date(initialNow).getTime();
+function createEmptyData(): DashboardData {
   return {
-    meals: [
-      { id: 'breakfast', day: '', slot: 'breakfast', dish: 'Poha, fruit & chai', time: '8:30 AM' },
-      { id: 'lunch', day: '', slot: 'lunch', dish: 'Rajma chawal & kachumber', time: '1:15 PM' },
-      { id: 'dinner', day: '', slot: 'dinner', dish: 'Palak paneer & roti', time: '8:00 PM' },
-    ],
-    shopping: ['Coriander', 'Dahi', 'Atta', 'Milk', 'Green chillies'].map((name, index) => ({ id: `item-${index}`, name, completed: 0 })),
-    reminders: [
-      { id: 'reminder-1', title: 'Soak rajma for tomorrow', due_at: new Date(timestamp + 2 * 3_600_000).toISOString(), recurrence: null, completed: 0 },
-      { id: 'reminder-2', title: 'Take evening medicine', due_at: new Date(timestamp + 5 * 3_600_000).toISOString(), recurrence: 'DAILY', completed: 0 },
-    ],
+    meals: [],
+    shopping: [],
+    reminders: [],
     notes: [],
     timers: [],
   };
@@ -116,10 +113,19 @@ function formatTimerRemaining(endsAt: string, now: number) {
     : `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function shiftDateKey(key: string, days: number) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+function makeUtcDate(year: number, month: number, day = 1) {
+  return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00Z`);
+}
+
 export default function KitchenDashboard({ initialNow, panchanga }: { initialNow: string; panchanga: PanchangaSnapshot }) {
   const renderDate = useMemo(() => new Date(initialNow), [initialNow]);
   const [mode, setMode] = useState<'kitchen' | 'manage'>('kitchen');
-  const [data, setData] = useState<DashboardData>(() => createStarterData(initialNow));
+  const [data, setData] = useState<DashboardData>(createEmptyData);
   const [commandOpen, setCommandOpen] = useState(false);
   const [command, setCommand] = useState('');
   const [commandStatus, setCommandStatus] = useState('');
@@ -131,11 +137,14 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
   const [timerLabel, setTimerLabel] = useState('');
   const [timerMinutes, setTimerMinutes] = useState('10');
   const [listening, setListening] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const [reminderActionPending, setReminderActionPending] = useState(false);
   const [clockNow, setClockNow] = useState(() => renderDate.getTime());
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const voiceTranscriptRef = useRef('');
   const voiceTimeoutRef = useRef<number | null>(null);
   const voiceCancelledRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const today = useMemo(() => localDay(renderDate), [renderDate]);
 
   const refresh = useCallback(async () => {
@@ -159,6 +168,40 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     const timer = window.setInterval(() => setClockNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  const playReminderChime = useCallback(() => {
+    const context = audioContextRef.current;
+    if (!context || context.state === 'closed') return;
+    void context.resume().then(() => {
+      const start = context.currentTime;
+      [0, 0.22].forEach((offset, index) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = index === 0 ? 659.25 : 783.99;
+        gain.gain.setValueAtTime(0.0001, start + offset);
+        gain.gain.exponentialRampToValueAtTime(0.16, start + offset + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + offset + 0.3);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start(start + offset);
+        oscillator.stop(start + offset + 0.32);
+      });
+    });
+  }, []);
+
+  function enableReminderSound() {
+    const AudioContextConstructor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextConstructor) {
+      setCommandStatus('Reminder sounds are unavailable in this browser.');
+      return;
+    }
+    const context = audioContextRef.current ?? new AudioContextConstructor();
+    audioContextRef.current = context;
+    void context.resume().then(() => {
+      setSoundEnabled(true);
+      playReminderChime();
+    });
+  }
 
   async function mutate(payload: Record<string, unknown>) {
     const response = await fetch('/api/dashboard', {
@@ -340,6 +383,16 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     try { await mutate({ op: 'pinFamilyNote', id, pinned }); } catch { await refresh(); }
   }
 
+  async function acknowledgeDueReminder(id: string) {
+    setReminderActionPending(true);
+    try { await mutate({ op: 'acknowledgeReminder', id }); } finally { setReminderActionPending(false); }
+  }
+
+  async function snoozeDueReminder(id: string) {
+    setReminderActionPending(true);
+    try { await mutate({ op: 'snoozeReminder', id, minutes: 10 }); } finally { setReminderActionPending(false); }
+  }
+
   async function submitTimer(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const minutes = Number(timerMinutes);
@@ -377,13 +430,34 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
   const openReminders = data.reminders.filter((item) => !item.completed);
   const activeNotes = data.notes.filter((item) => !item.completed);
   const activeTimers = data.timers.filter((item) => !item.completed);
+  const dueReminder = openReminders.find((reminder) => new Date(reminder.due_at).getTime() <= clockNow);
+  const visibleMeals = (['breakfast', 'lunch', 'dinner'] as const).map((slot) => data.meals.find((meal) => meal.slot === slot) ?? {
+    id: `empty-${slot}`,
+    day: today,
+    slot,
+    dish: 'Not planned',
+    time: slot === 'breakfast' ? '8:30 AM' : slot === 'lunch' ? '1:15 PM' : '8:00 PM',
+  });
+  const visibleData = { ...data, meals: visibleMeals };
+
+  useEffect(() => {
+    if (!dueReminder || !soundEnabled) return;
+    playReminderChime();
+    let playCount = 1;
+    const chime = window.setInterval(() => {
+      playReminderChime();
+      playCount += 1;
+      if (playCount >= 3) window.clearInterval(chime);
+    }, 10_000);
+    return () => window.clearInterval(chime);
+  }, [dueReminder, playReminderChime, soundEnabled]);
 
   return (
     <main className={`min-h-screen bg-background text-foreground ${mode === 'kitchen' ? 'kitchen-mode' : ''}`}>
       <header className="kitchen-header sticky top-0 z-30 grid h-[68px] grid-cols-[1fr_auto_1fr] items-center border-b border-border/60 bg-background/88 px-5 backdrop-blur-xl lg:px-7">
         <div className="flex min-w-0 items-center gap-2.5 text-muted-foreground">
           <CalendarDays className="size-[17px] shrink-0 text-primary/80" />
-          <span className="hidden truncate text-[12px] font-semibold sm:block">{dateLabel}</span>
+          <span className="optical-copy hidden truncate text-[12px] font-semibold sm:block">{dateLabel}</span>
         </div>
 
         <nav aria-label="Dashboard view" className="flex h-11 items-center gap-1 rounded-full bg-secondary/80 p-1">
@@ -393,13 +467,13 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
 
         <div className="flex items-center justify-self-end gap-2 text-[12px] font-semibold text-muted-foreground">
           <CloudSun className="size-[17px] text-primary/80" />
-          <span>29°<span className="hidden md:inline"> · Bellary</span></span>
+          <span className="optical-copy">29°<span className="hidden md:inline"> · Bellary</span></span>
         </div>
       </header>
 
       {mode === 'kitchen' ? (
         <KitchenView
-          data={data}
+          data={visibleData}
           dateLabel={dateLabel}
           greeting={greeting}
           openShopping={openShopping}
@@ -413,10 +487,12 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
           onMeal={openMeal}
           onToggle={toggle}
           onPinNote={pinFamilyNote}
+          soundEnabled={soundEnabled}
+          onEnableSound={enableReminderSound}
         />
       ) : (
         <ManageView
-          data={data}
+          data={visibleData}
           openShopping={openShopping}
           openReminders={openReminders}
           activeNotes={activeNotes}
@@ -482,15 +558,37 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={Boolean(dueReminder)} onOpenChange={() => undefined}>
+        <DialogContent className="reminder-alert-card max-w-[520px] rounded-[28px] border-[#d5b09f] bg-[#fffaf5] p-0 shadow-2xl [&_[data-slot=dialog-close]]:hidden">
+          {dueReminder && (
+            <div className="p-7 text-center sm:p-9">
+              <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#f0d8ca] text-[#925f50]"><BellRing className="size-7" /></span>
+              <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a6b5d]">Reminder</p>
+              <DialogHeader className="mt-2 items-center">
+                <DialogTitle className="font-display text-[32px] font-semibold leading-tight tracking-[-0.035em] text-[#443633]">{dueReminder.title}</DialogTitle>
+                <DialogDescription className="text-[13px] text-[#846f68]">Due {formatReminder(dueReminder)}</DialogDescription>
+              </DialogHeader>
+              {!soundEnabled && <Button onClick={enableReminderSound} variant="outline" className="mt-5 h-10 rounded-full border-[#ddc8be] bg-white/65 px-4 text-[#805b50]"><Volume2 /> Enable reminder sound</Button>}
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <Button onClick={() => void snoozeDueReminder(dueReminder.id)} disabled={reminderActionPending} variant="outline" className="h-12 rounded-xl border-[#ddc8be] bg-white text-[#725950]">Snooze 10 min</Button>
+                <Button onClick={() => void acknowledgeDueReminder(dueReminder.id)} disabled={reminderActionPending} className="h-12 rounded-xl bg-[#74564e] text-white hover:bg-[#60463f]">{reminderActionPending ? <LoaderCircle className="animate-spin" /> : <Check />} Done</Button>
+              </div>
+              {dueReminder.recurrence && <p className="mt-4 text-[11px] text-[#927b73]">Done schedules the next {dueReminder.recurrence === 'DAILY' ? 'daily' : 'weekly'} reminder automatically.</p>}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
 
-function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, activeNotes, activeTimers, clockNow, panchanga, onVoice, onManage, onMeal, onToggle, onPinNote }: {
+function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, activeNotes, activeTimers, clockNow, panchanga, onVoice, onManage, onMeal, onToggle, onPinNote, soundEnabled, onEnableSound }: {
   data: DashboardData; dateLabel: string; greeting: string; openShopping: ShoppingItem[]; openReminders: Reminder[]; activeNotes: FamilyNote[]; activeTimers: KitchenTimer[]; clockNow: number; panchanga: PanchangaSnapshot;
   onVoice: () => void; onManage: () => void; onMeal: (meal: Meal) => void;
   onToggle: (resource: ToggleResource, id: string, completed: boolean) => void;
   onPinNote: (id: string, pinned: boolean) => void;
+  soundEnabled: boolean; onEnableSound: () => void;
 }) {
   return (
     <div className="kitchen-view mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(290px,.78fr)] lg:p-5">
@@ -523,12 +621,15 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
           <article className="surface-card">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="section-icon"><Bell className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Coming up</h2></div>
-              <Button onClick={onVoice} variant="ghost" size="sm" className="rounded-full text-muted-foreground"><Plus /> Add</Button>
+              <div className="flex items-center gap-1">
+                {!soundEnabled && <Button onClick={onEnableSound} variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground" aria-label="Enable reminder sounds"><Volume2 className="size-3.5" /></Button>}
+                <Button onClick={onVoice} variant="ghost" size="sm" className="rounded-full text-muted-foreground"><Plus /> Add</Button>
+              </div>
             </div>
             <div className="divide-y divide-border/70">
               {openReminders.slice(0, 2).map((reminder) => (
                 <div key={reminder.id} className="grid grid-cols-[1fr_auto] items-center gap-3 py-3.5">
-                  <div><p className="text-[14px] font-semibold">{reminder.title}</p><p className="mt-1 text-[11px] font-medium text-primary">{formatReminder(reminder)}</p></div>
+                  <div className="optical-copy"><p className="text-[14px] font-semibold">{reminder.title}</p><p className="mt-1 text-[11px] font-medium text-primary">{formatReminder(reminder)}</p></div>
                   <button onClick={() => onToggle('reminder', reminder.id, true)} aria-label={`Complete ${reminder.title}`} className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"><Check className="size-4" /></button>
                 </div>
               ))}
@@ -536,20 +637,34 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
             </div>
           </article>
 
-          <article className="surface-card compact-dashboard-card">
+          <article className="surface-card">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5"><span className="section-icon"><ShoppingBasket className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Shopping</h2></div>
+              <span className="inline-flex min-h-7 items-center justify-center rounded-full bg-secondary px-2.5 text-[11px] font-bold text-secondary-foreground"><span className="optical-label">{openShopping.length} left</span></span>
+            </div>
+            <div className="space-y-1">
+              {openShopping.slice(0, 3).map((item) => (
+                <button key={item.id} onClick={() => onToggle('shopping', item.id, true)} className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left text-sm font-medium hover:text-primary"><span className="grid size-[19px] place-items-center rounded-md border-[1.5px] border-border bg-background" /><span className="optical-copy">{item.name}</span></button>
+              ))}
+              {!openShopping.length && <p className="py-5 text-center text-sm text-muted-foreground">The shopping list is clear.</p>}
+            </div>
+            <button onClick={onManage} className="mt-3 flex items-center gap-1 text-[12px] font-bold text-primary"><span className="optical-label">Open list</span> <ChevronRight className="size-3.5" /></button>
+          </article>
+
+          <article className="family-board-wide surface-card compact-dashboard-card md:col-span-2">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="section-icon"><MessageSquareText className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Family board</h2></div>
               <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground" aria-label="Add family note by voice"><Mic className="size-3.5" /></Button>
             </div>
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {activeNotes.slice(0, 2).map((note) => (
                 <div key={note.id} className={`flex items-center gap-2 rounded-xl px-2.5 py-2 ${note.pinned ? 'pinned-note' : 'bg-background/45'}`}>
-                  <p className="line-clamp-2 min-w-0 flex-1 text-[12px] font-semibold leading-snug">{note.message}</p>
+                  <p className="optical-copy line-clamp-2 min-w-0 flex-1 text-[12px] font-semibold leading-snug">{note.message}</p>
                   <button onClick={() => onPinNote(note.id, !note.pinned)} className={`grid size-7 shrink-0 place-items-center rounded-full hover:bg-white/50 ${note.pinned ? 'text-[#9a5d59]' : 'text-muted-foreground'}`} aria-label={`${note.pinned ? 'Unpin' : 'Pin'} note: ${note.message}`} aria-pressed={Boolean(note.pinned)}><Pin className="size-3.5" fill={note.pinned ? 'currentColor' : 'none'} /></button>
                   <button onClick={() => onToggle('note', note.id, true)} className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Remove note: ${note.message}`}><X className="size-3.5" /></button>
                 </div>
               ))}
-              {!activeNotes.length && <button onClick={onVoice} className="w-full py-7 text-left text-[13px] font-medium text-muted-foreground">Say “add a family note…”</button>}
+              {!activeNotes.length && <button onClick={onVoice} className="w-full py-3 text-left text-[13px] font-medium text-muted-foreground sm:col-span-2">Say “add a family note…”</button>}
             </div>
           </article>
         </div>
@@ -557,14 +672,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
 
       <aside className="kitchen-sidebar min-w-0">
         <PanchangaCard snapshot={panchanga} />
-        <div className="sidebar-utilities grid grid-cols-2 gap-3">
-          <article className="surface-card compact-utility-card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2"><span className="section-icon"><ShoppingBasket className="size-4" /></span><h2 className="font-display text-[17px] font-semibold">Shopping</h2></div>
-              <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold">{openShopping.length}</span>
-            </div>
-            <button onClick={onManage} className="mt-3 flex items-center gap-1 text-[12px] font-bold text-primary"><span className="optical-label">Open list</span> <ChevronRight className="size-3.5" /></button>
-          </article>
+        <div className="sidebar-utilities grid grid-cols-1 gap-3">
           <article className="surface-card compact-utility-card" aria-live="polite">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2"><span className="section-icon"><TimerReset className="size-4" /></span><h2 className="font-display text-[17px] font-semibold">Timers</h2></div>
@@ -572,7 +680,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
             </div>
             {activeTimers.length ? activeTimers.slice(0, 1).map((timer) => {
               const remaining = formatTimerRemaining(timer.ends_at, clockNow);
-              return <button key={timer.id} onClick={() => onToggle('timer', timer.id, true)} className="mt-3 flex w-full items-center justify-between gap-2 text-left"><span className="truncate text-[12px] font-semibold">{timer.label}</span><time dateTime={timer.ends_at} className="font-display text-[14px] font-bold tabular-nums">{remaining}</time></button>;
+              return <button key={timer.id} onClick={() => onToggle('timer', timer.id, true)} className="mt-3 flex w-full items-center justify-between gap-2 text-left"><span className="optical-copy truncate text-[12px] font-semibold">{timer.label}</span><time dateTime={timer.ends_at} className="optical-copy font-display text-[14px] font-bold tabular-nums">{remaining}</time></button>;
             }) : <button onClick={onVoice} className="mt-3 text-left text-[11px] font-medium text-muted-foreground">Start by voice</button>}
           </article>
         </div>
@@ -581,8 +689,78 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
   );
 }
 
-function PanchangaCard({ snapshot }: { snapshot: PanchangaSnapshot }) {
+function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnapshot }) {
+  const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => initialSnapshot.today?.date.slice(0, 7) || '2026-01');
+  const [monthDays, setMonthDays] = useState<PanchangaMonthDay[]>([]);
+  const [panchangaLoading, setPanchangaLoading] = useState(false);
   const { today, alerts } = snapshot;
+
+  const loadDate = useCallback(async (date: string) => {
+    if (!date.startsWith('2026-')) return;
+    setPanchangaLoading(true);
+    try {
+      const response = await fetch(`/api/panchanga?date=${date}`);
+      if (response.ok) {
+        setSnapshot((await response.json()) as PanchangaSnapshot);
+        setCalendarMonth(date.slice(0, 7));
+      }
+    } finally { setPanchangaLoading(false); }
+  }, []);
+
+  const loadMonth = useCallback(async (month: string) => {
+    setPanchangaLoading(true);
+    try {
+      const response = await fetch(`/api/panchanga?month=${month}`);
+      if (response.ok) setMonthDays((await response.json()) as PanchangaMonthDay[]);
+    } finally { setPanchangaLoading(false); }
+  }, []);
+
+  function moveMonth(amount: number) {
+    const [year, month] = calendarMonth.split('-').map(Number);
+    const targetMonth = month + amount;
+    const targetYear = year + Math.floor((targetMonth - 1) / 12);
+    const normalizedMonth = ((targetMonth - 1) % 12 + 12) % 12 + 1;
+    const next = `${targetYear}-${String(normalizedMonth).padStart(2, '0')}`;
+    if (next.startsWith('2026-')) {
+      setCalendarMonth(next);
+      void loadMonth(next);
+    }
+  }
+
+  function openCalendar() {
+    setCalendarOpen(true);
+    void loadMonth(calendarMonth);
+  }
+
+  if (calendarOpen) {
+    const [year, month] = calendarMonth.split('-').map(Number);
+    const leadingDays = makeUtcDate(year, month).getUTCDay();
+    const cells = [...Array.from({ length: leadingDays }, () => null), ...monthDays];
+    const selectedDate = today?.date;
+    const monthLabel = new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(makeUtcDate(year, month));
+    return (
+      <article key="calendar" className="panchanga-card panchanga-flip-content">
+        <div className="flex items-center justify-between gap-2">
+          <button onClick={() => moveMonth(-1)} disabled={calendarMonth === '2026-01'} className="grid size-9 place-items-center rounded-full bg-white/55 text-[#65777a] disabled:opacity-25" aria-label="Previous month"><ArrowLeft className="size-4" /></button>
+          <button onClick={() => setCalendarOpen(false)} className="min-w-0 text-center"><span className="block text-[9px] font-bold uppercase tracking-[0.13em] text-[#718083]">Panchanga calendar</span><span className="font-display text-[19px] font-bold">{monthLabel}</span></button>
+          <button onClick={() => moveMonth(1)} disabled={calendarMonth === '2026-12'} className="grid size-9 place-items-center rounded-full bg-white/55 text-[#65777a] disabled:opacity-25" aria-label="Next month"><ArrowRight className="size-4" /></button>
+        </div>
+        <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[8px] font-bold uppercase tracking-wide text-[#7b817e]">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day}>{day}</span>)}</div>
+        <div className={`mt-2 grid flex-1 grid-cols-7 grid-rows-6 gap-1 ${panchangaLoading ? 'opacity-45' : ''}`}>
+          {cells.map((record, index) => record ? (
+            <button key={record.date} onClick={() => { void loadDate(record.date); setCalendarOpen(false); }} className={`panchanga-day-cell ${record.date === selectedDate ? 'is-selected' : ''} ${record.ekadashi || record.festivals.length ? 'has-observance' : ''}`}>
+              <span className="text-[9px] font-bold">{Number(record.date.slice(-2))}</span>
+              <span lang="kn" className="line-clamp-2 text-[7px] font-semibold leading-tight">{record.tithi}</span>
+            </button>
+          ) : <span key={`empty-${index}`} />)}
+        </div>
+        <button onClick={() => { void loadDate(localDay(new Date())); setCalendarOpen(false); }} className="mx-auto mt-3 rounded-full bg-white/55 px-4 py-2 text-[10px] font-bold text-[#65777a]"><span className="optical-label">Today</span></button>
+      </article>
+    );
+  }
+
   if (!today) {
     return (
       <article className="panchanga-card">
@@ -598,15 +776,22 @@ function PanchangaCard({ snapshot }: { snapshot: PanchangaSnapshot }) {
   const visibleAlerts = alerts.slice(0, 2);
 
   return (
-    <article className="panchanga-card">
+    <article key="detail" className={`panchanga-card panchanga-flip-content ${panchangaLoading ? 'opacity-55' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#65777a]">Panchanga · Bellary</p>
           <h2 lang="kn" className="mt-2 truncate font-display text-[31px] font-bold leading-[1.15] tracking-[-0.015em]" title={today.tithi}>{today.tithi}</h2>
           <p lang="kn" className="mt-1.5 truncate text-sm font-semibold text-[#5f6462]" title={`${today.masa} · ${today.rutu} · ${today.paksha}`}>{today.masa} · {today.rutu} · {today.paksha}</p>
         </div>
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-white/60 text-[#65777a]"><MoonStar className="size-5" /></span>
+        <div className="grid shrink-0 grid-cols-2 gap-1">
+          <button onClick={() => void loadDate(shiftDateKey(today.date, -1))} disabled={today.date === '2026-01-01'} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Previous Panchanga day"><ArrowLeft className="size-3.5" /></button>
+          <button onClick={() => void loadDate(shiftDateKey(today.date, 1))} disabled={today.date === '2026-12-31'} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Next Panchanga day"><ArrowRight className="size-3.5" /></button>
+          <button onClick={openCalendar} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Open Panchanga calendar"><CalendarRange className="size-3.5" /></button>
+          <button onClick={() => void loadDate(localDay(new Date()))} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Reset Panchanga to today"><MoonStar className="size-3.5" /></button>
+        </div>
       </div>
+
+      <p className="mt-2 text-[9px] font-bold uppercase tracking-[0.11em] text-[#737875]/75">{new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${today.date}T12:00:00Z`))}</p>
 
       <p lang="kn" className="mt-3 truncate text-[9px] font-medium text-[#737875]/80" title={`${today.samvatsara} · ${today.ayana} · ${today.vasara}`}>
         {today.samvatsara} · {today.ayana} · {today.vasara}
@@ -686,7 +871,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
             {data.meals.map((meal) => (
               <button key={meal.id} onClick={() => onMeal(meal)} className="flex w-full items-center gap-4 rounded-2xl border border-border/70 bg-background/50 p-4 text-left transition-colors hover:border-primary/40">
                 <span className={`size-3 rounded-full meal-dot-${mealTone[meal.slot]}`} />
-                <span className="min-w-0 flex-1"><span className="block text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{mealLabels[meal.slot]} · {meal.time}</span><span className="mt-1 block truncate text-sm font-semibold">{meal.dish}</span></span>
+                <span className="optical-copy min-w-0 flex-1"><span className="block text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{mealLabels[meal.slot]} · {meal.time}</span><span className="mt-1 block truncate text-sm font-semibold">{meal.dish}</span></span>
                 <ChevronRight className="size-4 text-muted-foreground" />
               </button>
             ))}
@@ -699,7 +884,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           <div className="max-h-[260px] space-y-1 overflow-auto pr-1">
             {data.shopping.map((item) => (
               <button key={item.id} onClick={() => onToggle('shopping', item.id, !item.completed)} className={`flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left text-sm font-medium hover:bg-secondary/60 ${item.completed ? 'text-muted-foreground line-through' : ''}`}>
-                <span className={`grid size-5 place-items-center rounded-md border ${item.completed ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'}`}>{item.completed ? <Check className="size-3.5" /> : null}</span>{item.name}
+                <span className={`grid size-5 place-items-center rounded-md border ${item.completed ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'}`}>{item.completed ? <Check className="size-3.5" /> : null}</span><span className="optical-copy">{item.name}</span>
               </button>
             ))}
           </div>
@@ -713,7 +898,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           <form onSubmit={onAddFamilyNote} className="mb-3 flex items-center gap-2"><Input value={familyNote} onChange={(event) => onFamilyNote(event.target.value)} placeholder="Leave a note for the family" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!familyNote.trim()} className="size-10 rounded-xl" aria-label="Add note"><Plus /></Button></form>
           <div className="space-y-2">
             {activeNotes.map((note) => (
-              <div key={note.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${note.pinned ? 'pinned-note' : 'border-transparent bg-background/60'}`}><p className="min-w-0 flex-1 text-sm font-medium">{note.message}</p><button onClick={() => onPinNote(note.id, !note.pinned)} className={`grid size-8 shrink-0 place-items-center rounded-full hover:bg-white/55 ${note.pinned ? 'text-[#9a5d59]' : 'text-muted-foreground'}`} aria-label={`${note.pinned ? 'Unpin' : 'Pin'} note: ${note.message}`} aria-pressed={Boolean(note.pinned)}><Pin className="size-4" fill={note.pinned ? 'currentColor' : 'none'} /></button><button onClick={() => onToggle('note', note.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Remove note: ${note.message}`}><X className="size-4" /></button></div>
+              <div key={note.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${note.pinned ? 'pinned-note' : 'border-transparent bg-background/60'}`}><p className="optical-copy min-w-0 flex-1 text-sm font-medium">{note.message}</p><button onClick={() => onPinNote(note.id, !note.pinned)} className={`grid size-8 shrink-0 place-items-center rounded-full hover:bg-white/55 ${note.pinned ? 'text-[#9a5d59]' : 'text-muted-foreground'}`} aria-label={`${note.pinned ? 'Unpin' : 'Pin'} note: ${note.message}`} aria-pressed={Boolean(note.pinned)}><Pin className="size-4" fill={note.pinned ? 'currentColor' : 'none'} /></button><button onClick={() => onToggle('note', note.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Remove note: ${note.message}`}><X className="size-4" /></button></div>
             ))}
             {!activeNotes.length && <p className="py-6 text-center text-sm text-muted-foreground">No family notes right now.</p>}
           </div>
@@ -728,7 +913,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           <div className="space-y-2" aria-live="polite">
             {activeTimers.map((timer) => {
               const remaining = formatTimerRemaining(timer.ends_at, clockNow);
-              return <div key={timer.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${remaining === 'Done' ? 'bg-[#e4d8c3]' : 'bg-background/60'}`}><p className="min-w-0 flex-1 truncate text-sm font-semibold">{timer.label}</p><time dateTime={timer.ends_at} className="font-display font-bold tabular-nums">{remaining}</time><button onClick={() => onToggle('timer', timer.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Dismiss ${timer.label} timer`}><X className="size-4" /></button></div>;
+              return <div key={timer.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${remaining === 'Done' ? 'bg-[#e4d8c3]' : 'bg-background/60'}`}><p className="optical-copy min-w-0 flex-1 truncate text-sm font-semibold">{timer.label}</p><time dateTime={timer.ends_at} className="optical-copy font-display font-bold tabular-nums">{remaining}</time><button onClick={() => onToggle('timer', timer.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Dismiss ${timer.label} timer`}><X className="size-4" /></button></div>;
             })}
             {!activeTimers.length && <p className="py-6 text-center text-sm text-muted-foreground">No timers running.</p>}
           </div>
@@ -740,7 +925,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
             {openReminders.map((reminder) => (
               <div key={reminder.id} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/50 p-4">
                 <button onClick={() => onToggle('reminder', reminder.id, true)} aria-label={`Complete ${reminder.title}`} className="grid size-9 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:border-primary hover:text-primary"><Check className="size-4" /></button>
-                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{reminder.title}</p><p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary">{reminder.recurrence ? <Repeat2 className="size-3" /> : <Bell className="size-3" />}{formatReminder(reminder)}</p></div>
+                <div className="optical-copy min-w-0 flex-1"><p className="truncate text-sm font-semibold">{reminder.title}</p><p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary">{reminder.recurrence ? <Repeat2 className="size-3" /> : <Bell className="size-3" />}{formatReminder(reminder)}</p></div>
               </div>
             ))}
           </div>

@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Kolkata
+      SUPABASE_URL: ${SUPABASE_URL:-http://192.168.1.28:8000}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?Set SUPABASE_SERVICE_ROLE_KEY in the repository .env file}
     ports:
       - "${KITCHEN_HTTP_PORT:-3000}:3000"
     volumes:

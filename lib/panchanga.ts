@@ -34,6 +34,8 @@ export type PanchangaSnapshot = {
   alerts: PanchangaAlert[];
 };
 
+export type PanchangaMonthDay = Pick<PanchangaDay, 'date' | 'tithi' | 'ekadashi' | 'festivals'>;
+
 const TIME_ZONE = 'Asia/Kolkata';
 const records = panchangaData as PanchangaDay[];
 const byDate = new Map(records.map((record) => [record.date, record]));
@@ -59,8 +61,7 @@ function shortFestivalName(value: string) {
   return headline.length > 72 ? `${headline.slice(0, 69).trim()}…` : headline;
 }
 
-export function getPanchangaSnapshot(now: Date): PanchangaSnapshot {
-  const todayKey = dateKey(now);
+export function getPanchangaSnapshotForDate(todayKey: string): PanchangaSnapshot {
   const today = byDate.get(todayKey) || null;
   const alerts: PanchangaAlert[] = [];
 
@@ -83,4 +84,14 @@ export function getPanchangaSnapshot(now: Date): PanchangaSnapshot {
   }
 
   return { today, alerts };
+}
+
+export function getPanchangaSnapshot(now: Date): PanchangaSnapshot {
+  return getPanchangaSnapshotForDate(dateKey(now));
+}
+
+export function getPanchangaMonth(month: string): PanchangaMonthDay[] {
+  return records
+    .filter((record) => record.date.startsWith(`${month}-`))
+    .map(({ date, tithi, ekadashi, festivals }) => ({ date, tithi, ekadashi, festivals }));
 }
