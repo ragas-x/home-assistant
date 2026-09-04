@@ -1,2 +1,0 @@
-# Copy this file to .dev.vars for local development. Never commit the real key.
-OPENAI_API_KEY=your_openai_api_key

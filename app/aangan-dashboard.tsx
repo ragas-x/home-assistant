@@ -41,12 +41,12 @@ type RecognitionLike = {
   lang: string;
   onstart: () => void;
   onend: () => void;
-  onerror: () => void;
-  onresult: (event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void;
+  onerror: (event: { error: string }) => void;
+  onresult: (event: { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void;
   start: () => void;
+  stop: () => void;
+  abort: () => void;
 };
-
-type TranscriptionResponse = { text?: string; error?: string; code?: string };
 
 const HOUSEHOLD_TIME_ZONE = 'Asia/Kolkata';
 
@@ -105,8 +105,8 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [mealDish, setMealDish] = useState('');
   const [listening, setListening] = useState(false);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<RecognitionLike | null>(null);
+  const voiceTranscriptRef = useRef('');
   const voiceTimeoutRef = useRef<number | null>(null);
   const voiceCancelledRef = useRef(false);
   const today = useMemo(() => localDay(renderDate), [renderDate]);
@@ -169,24 +169,19 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     }
   }
 
-  function releaseMicrophone() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    recorderRef.current = null;
-    clearVoiceTimeout();
-    setListening(false);
-  }
-
   function stopVoice(cancelled = false) {
     voiceCancelledRef.current = cancelled;
     clearVoiceTimeout();
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      if (!cancelled) setCommandStatus('Transcribing…');
-      recorder.stop();
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      if (cancelled) recognition.abort();
+      else {
+        setCommandStatus('Finishing…');
+        recognition.stop();
+      }
       return;
     }
-    releaseMicrophone();
+    setListening(false);
   }
 
   function beginNativeVoice() {
@@ -201,46 +196,61 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     }
     const recognition = new Constructor();
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = 'en-IN';
-    recognition.onstart = () => { setListening(true); setCommandStatus('Listening…'); };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => { setListening(false); setCommandStatus('Safari could not capture that. Check microphone permission and try again.'); };
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript || '';
-      setCommand(transcript);
-      void runCommand(transcript);
+    recognitionRef.current = recognition;
+    voiceTranscriptRef.current = '';
+    voiceCancelledRef.current = false;
+    recognition.onstart = () => {
+      setListening(true);
+      setCommandStatus('Listening… tap the microphone when you are done.');
+      voiceTimeoutRef.current = window.setTimeout(() => stopVoice(), 12_000);
     };
-    recognition.start();
-  }
-
-  async function transcribeRecording(audio: Blob, extension: string) {
-    if (!audio.size) {
-      setCommandStatus('I did not receive any audio. Tap the microphone and try again.');
-      return;
-    }
-
-    setCommandStatus('Transcribing…');
-    try {
-      const payload = new FormData();
-      payload.append('audio', audio, `voice-command.${extension}`);
-      const response = await fetch('/api/transcribe', { method: 'POST', body: payload });
-      const result = (await response.json()) as TranscriptionResponse;
-      if (!response.ok) throw new Error(result.error || 'I could not transcribe that audio.');
-
-      const transcript = result.text?.trim() || '';
-      if (!transcript) throw new Error('I could not hear any words. Please try again.');
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      clearVoiceTimeout();
+      setListening(false);
+      if (voiceCancelledRef.current) return;
+      const transcript = voiceTranscriptRef.current.trim();
+      if (transcript) void runCommand(transcript);
+      else setCommandStatus('I did not catch that. Tap the microphone and try again.');
+    };
+    recognition.onerror = (event) => {
+      voiceCancelledRef.current = true;
+      recognitionRef.current = null;
+      clearVoiceTimeout();
+      setListening(false);
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setCommandStatus('Microphone or speech recognition is blocked. Allow both for this website in Safari settings.');
+      } else if (event.error === 'no-speech') {
+        setCommandStatus('I did not hear anything. Tap the microphone and try again.');
+      } else if (event.error === 'network') {
+        setCommandStatus('Safari speech recognition needs a network connection. Check Wi-Fi and try again.');
+      } else {
+        setCommandStatus('Safari could not recognise that. Please try again or type the command.');
+      }
+    };
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let index = 0; index < event.results.length; index += 1) {
+        transcript += `${event.results[index]?.[0]?.transcript || ''} `;
+      }
+      transcript = transcript.trim();
+      voiceTranscriptRef.current = transcript;
       setCommand(transcript);
-      await runCommand(transcript);
-    } catch (error) {
-      setCommandStatus(error instanceof Error ? error.message : 'Voice transcription failed.');
+    };
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setCommandStatus('Speech recognition could not start. Reload the page and try again.');
     }
   }
 
-  async function beginVoice() {
+  function beginVoice() {
     setCommandOpen(true);
 
-    if (recorderRef.current?.state === 'recording') {
+    if (recognitionRef.current) {
       stopVoice();
       return;
     }
@@ -253,61 +263,12 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
       return;
     }
 
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      beginNativeVoice();
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
-      streamRef.current = stream;
-
-      const mimeType = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']
-        .find((candidate) => MediaRecorder.isTypeSupported(candidate));
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-      const chunks: Blob[] = [];
-      recorderRef.current = recorder;
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size) chunks.push(event.data);
-      };
-      recorder.onerror = () => {
-        releaseMicrophone();
-        setCommandStatus('The microphone stopped unexpectedly. Reload the page and try again.');
-      };
-      recorder.onstop = () => {
-        const cancelled = voiceCancelledRef.current;
-        const recordingType = recorder.mimeType || mimeType || 'audio/webm';
-        const extension = recordingType.includes('mp4') ? 'm4a' : recordingType.includes('wav') ? 'wav' : 'webm';
-        const audio = new Blob(chunks, { type: recordingType });
-        releaseMicrophone();
-        if (!cancelled) void transcribeRecording(audio, extension);
-      };
-
-      recorder.start(250);
-      setListening(true);
-      setCommandStatus('Listening… tap the microphone when you are done.');
-      voiceTimeoutRef.current = window.setTimeout(() => stopVoice(), 12_000);
-    } catch (error) {
-      releaseMicrophone();
-      const name = error instanceof DOMException ? error.name : '';
-      if (name === 'NotAllowedError') {
-        setCommandStatus('Microphone access is blocked. Allow it for this website in Safari, then try again.');
-      } else if (name === 'NotReadableError') {
-        setCommandStatus('The iPad microphone is busy. Close other audio apps, reload this page, and try again.');
-      } else {
-        setCommandStatus('I could not open the microphone. Reload the page and try again.');
-      }
-    }
+    beginNativeVoice();
   }
 
   function setCommandDialogOpen(open: boolean) {
     setCommandOpen(open);
-    if (!open && listening) stopVoice(true);
+    if (!open && recognitionRef.current) stopVoice(true);
   }
 
   async function toggle(resource: 'shopping' | 'reminder', id: string, completed: boolean) {
@@ -400,7 +361,7 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
         />
       )}
 
-      <button onClick={() => void beginVoice()} className={`floating-voice-button ${listening ? 'is-listening' : ''}`} aria-label={listening ? 'Stop listening' : 'Speak a command'}><Mic className="size-5" /></button>
+      <button onClick={beginVoice} className={`floating-voice-button ${listening ? 'is-listening' : ''}`} aria-label={listening ? 'Stop listening' : 'Speak a command'}><Mic className="size-5" /></button>
 
       <Dialog open={commandOpen} onOpenChange={setCommandDialogOpen}>
         <DialogContent className="max-w-[560px] gap-0 overflow-hidden rounded-[26px] border-border bg-card p-0 shadow-2xl">
@@ -414,7 +375,7 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
           <form onSubmit={(event) => { event.preventDefault(); void runCommand(command); }} className="p-5 sm:p-6">
             <div className="flex gap-2">
               <Input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="Remind me every day at 7 PM…" className="h-12 rounded-xl bg-background px-4 text-[14px]" />
-              <Button type="button" onClick={() => void beginVoice()} variant="outline" className={`size-12 rounded-xl ${listening ? 'border-primary bg-secondary text-primary' : ''}`} aria-label={listening ? 'Stop listening' : 'Listen'}><Mic className="size-[18px]" /></Button>
+              <Button type="button" onClick={beginVoice} variant="outline" className={`size-12 rounded-xl ${listening ? 'border-primary bg-secondary text-primary' : ''}`} aria-label={listening ? 'Stop listening' : 'Listen'}><Mic className="size-[18px]" /></Button>
               <Button type="submit" disabled={!command.trim() || processing} className="size-12 rounded-xl" aria-label="Run command">{processing ? <LoaderCircle className="animate-spin" /> : <Send />}</Button>
             </div>
             {commandStatus && <output className="mt-4 block rounded-xl bg-secondary px-4 py-3 text-[13px] font-medium leading-relaxed text-secondary-foreground">{commandStatus}</output>}
