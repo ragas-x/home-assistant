@@ -27,8 +27,10 @@ services:
     depends_on:
       dashboard:
         condition: service_healthy
+    environment:
+      KITCHEN_HTTPS_PORT: ${KITCHEN_HTTPS_PORT:-9443}
     ports:
-      - "8443:8443"
+      - "${KITCHEN_HTTPS_PORT:-9443}:${KITCHEN_HTTPS_PORT:-9443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${KITCHEN_CADDY_DIR:-/DATA/AppData/kitchen-dashboard/caddy}:/data

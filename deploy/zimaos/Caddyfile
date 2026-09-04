@@ -1,4 +1,4 @@
-https://192.168.1.6:8443 {
+https://192.168.1.6:{$KITCHEN_HTTPS_PORT} {
   tls internal
   encode zstd gzip
   reverse_proxy dashboard:3000
