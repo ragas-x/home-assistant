@@ -1,0 +1,35 @@
+services:
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: kitchen-dashboard
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Kolkata
+    volumes:
+      - ${KITCHEN_DATA_DIR:-/DATA/AppData/kitchen-dashboard/data}:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 30s
+      timeout: 8s
+      retries: 5
+      start_period: 30s
+
+  https:
+    image: caddy:2-alpine
+    container_name: kitchen-dashboard-https
+    restart: unless-stopped
+    depends_on:
+      dashboard:
+        condition: service_healthy
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${KITCHEN_CADDY_DIR:-/DATA/AppData/kitchen-dashboard/caddy}:/data
+      - ${KITCHEN_CADDY_CONFIG_DIR:-/DATA/AppData/kitchen-dashboard/caddy-config}:/config

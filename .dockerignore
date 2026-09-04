@@ -1,0 +1,10 @@
+.git
+.github
+.next
+.vinext
+.wrangler
+dist
+node_modules
+npm-debug.log*
+.env*
+.dev.vars
