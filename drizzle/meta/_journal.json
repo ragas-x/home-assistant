@@ -8,6 +8,27 @@
       "when": 1788498746621,
       "tag": "0000_friendly_zzzax",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788516040824,
+      "tag": "0001_square_red_shift",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788516072072,
+      "tag": "0002_flashy_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788527545322,
+      "tag": "0003_rapid_silver_sable",
+      "breakpoints": true
     }
   ]
 }

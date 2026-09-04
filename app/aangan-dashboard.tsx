@@ -8,15 +8,19 @@ import {
   ChevronRight,
   CloudSun,
   LoaderCircle,
+  MessageSquareText,
   Mic,
   MoonStar,
+  Pin,
   Plus,
   Repeat2,
   Send,
   ShoppingBasket,
   Sparkles,
   Sunrise,
+  TimerReset,
   UtensilsCrossed,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,7 +37,10 @@ import type { PanchangaSnapshot } from '@/lib/panchanga';
 type Meal = { id: string; day: string; slot: 'breakfast' | 'lunch' | 'dinner'; dish: string; time: string };
 type ShoppingItem = { id: string; name: string; completed: number };
 type Reminder = { id: string; title: string; due_at: string; recurrence: string | null; completed: number };
-type DashboardData = { meals: Meal[]; shopping: ShoppingItem[]; reminders: Reminder[] };
+type FamilyNote = { id: string; message: string; pinned: number; completed: number; created_at: string };
+type KitchenTimer = { id: string; label: string; ends_at: string; completed: number; created_at: string };
+type DashboardData = { meals: Meal[]; shopping: ShoppingItem[]; reminders: Reminder[]; notes: FamilyNote[]; timers: KitchenTimer[] };
+type ToggleResource = 'shopping' | 'reminder' | 'note' | 'timer';
 
 type RecognitionLike = {
   continuous: boolean;
@@ -63,6 +70,8 @@ function createStarterData(initialNow: string): DashboardData {
       { id: 'reminder-1', title: 'Soak rajma for tomorrow', due_at: new Date(timestamp + 2 * 3_600_000).toISOString(), recurrence: null, completed: 0 },
       { id: 'reminder-2', title: 'Take evening medicine', due_at: new Date(timestamp + 5 * 3_600_000).toISOString(), recurrence: 'DAILY', completed: 0 },
     ],
+    notes: [],
+    timers: [],
   };
 }
 
@@ -72,6 +81,8 @@ const examples = [
   'Remind me 10 days from now to book the gas cylinder',
   'Remind me every day at 7 PM to water the tulsi',
   'Add dahi and coriander to the shopping list',
+  'Start a 12-minute rice timer',
+  'Add a family note that Amma will be late',
 ];
 
 function localDay(date: Date) {
@@ -93,6 +104,18 @@ function formatReminder(reminder: Reminder) {
   return date.toLocaleString('en-IN', { timeZone: HOUSEHOLD_TIME_ZONE, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
+function formatTimerRemaining(endsAt: string, now: number) {
+  const remaining = Math.max(0, new Date(endsAt).getTime() - now);
+  if (remaining === 0) return 'Done';
+  const totalSeconds = Math.ceil(remaining / 1_000);
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function KitchenDashboard({ initialNow, panchanga }: { initialNow: string; panchanga: PanchangaSnapshot }) {
   const renderDate = useMemo(() => new Date(initialNow), [initialNow]);
   const [mode, setMode] = useState<'kitchen' | 'manage'>('kitchen');
@@ -104,7 +127,11 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
   const [listItem, setListItem] = useState('');
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [mealDish, setMealDish] = useState('');
+  const [familyNote, setFamilyNote] = useState('');
+  const [timerLabel, setTimerLabel] = useState('');
+  const [timerMinutes, setTimerMinutes] = useState('10');
   const [listening, setListening] = useState(false);
+  const [clockNow, setClockNow] = useState(() => renderDate.getTime());
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const voiceTranscriptRef = useRef('');
   const voiceTimeoutRef = useRef<number | null>(null);
@@ -127,6 +154,11 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
       })
       .catch(() => setCommandStatus('The dashboard is offline. Your current view is still available.'));
   }, [today]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function mutate(payload: Record<string, unknown>) {
     const response = await fetch('/api/dashboard', {
@@ -271,12 +303,14 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     if (!open && recognitionRef.current) stopVoice(true);
   }
 
-  async function toggle(resource: 'shopping' | 'reminder', id: string, completed: boolean) {
-    setData((current) => ({
-      ...current,
-      [resource === 'shopping' ? 'shopping' : 'reminders']:
-        current[resource === 'shopping' ? 'shopping' : 'reminders'].map((item) => item.id === id ? { ...item, completed: completed ? 1 : 0 } : item),
-    }));
+  async function toggle(resource: ToggleResource, id: string, completed: boolean) {
+    setData((current) => {
+      const value = completed ? 1 : 0;
+      if (resource === 'shopping') return { ...current, shopping: current.shopping.map((item) => item.id === id ? { ...item, completed: value } : item) };
+      if (resource === 'reminder') return { ...current, reminders: current.reminders.map((item) => item.id === id ? { ...item, completed: value } : item) };
+      if (resource === 'note') return { ...current, notes: current.notes.map((item) => item.id === id ? { ...item, completed: value } : item) };
+      return { ...current, timers: current.timers.map((item) => item.id === id ? { ...item, completed: value } : item) };
+    });
     try { await mutate({ op: 'toggle', resource, id, completed }); } catch { await refresh(); }
   }
 
@@ -286,6 +320,33 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     const name = listItem;
     setListItem('');
     await mutate({ op: 'addShopping', name });
+  }
+
+  async function submitFamilyNote(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!familyNote.trim()) return;
+    const message = familyNote;
+    setFamilyNote('');
+    await mutate({ op: 'addFamilyNote', message });
+  }
+
+  async function pinFamilyNote(id: string, pinned: boolean) {
+    setData((current) => ({
+      ...current,
+      notes: current.notes
+        .map((note) => note.id === id ? { ...note, pinned: pinned ? 1 : 0 } : note)
+        .sort((a, b) => b.pinned - a.pinned || b.created_at.localeCompare(a.created_at)),
+    }));
+    try { await mutate({ op: 'pinFamilyNote', id, pinned }); } catch { await refresh(); }
+  }
+
+  async function submitTimer(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const minutes = Number(timerMinutes);
+    if (!timerLabel.trim() || !Number.isFinite(minutes) || minutes <= 0 || minutes > 1_440) return;
+    const label = timerLabel;
+    setTimerLabel('');
+    await mutate({ op: 'startTimer', label, endsAt: new Date(Date.now() + minutes * 60_000).toISOString() });
   }
 
   function openMeal(meal: Meal) {
@@ -314,6 +375,8 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
   const greeting = householdHour < 12 ? 'Good morning' : householdHour < 17 ? 'Good afternoon' : 'Good evening';
   const openShopping = data.shopping.filter((item) => !item.completed);
   const openReminders = data.reminders.filter((item) => !item.completed);
+  const activeNotes = data.notes.filter((item) => !item.completed);
+  const activeTimers = data.timers.filter((item) => !item.completed);
 
   return (
     <main className={`min-h-screen bg-background text-foreground ${mode === 'kitchen' ? 'kitchen-mode' : ''}`}>
@@ -324,8 +387,8 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
         </div>
 
         <nav aria-label="Dashboard view" className="flex h-11 items-center gap-1 rounded-full bg-secondary/80 p-1">
-          <button onClick={() => setMode('kitchen')} aria-current={mode === 'kitchen' ? 'page' : undefined} className={`inline-flex h-9 min-w-[84px] items-center justify-center rounded-full px-4 pt-px text-[12px] font-semibold leading-none transition-colors ${mode === 'kitchen' ? 'bg-card text-foreground ring-1 ring-border/50' : 'text-muted-foreground hover:text-foreground'}`}>Kitchen</button>
-          <button onClick={() => setMode('manage')} aria-current={mode === 'manage' ? 'page' : undefined} className={`inline-flex h-9 min-w-[84px] items-center justify-center rounded-full px-4 pt-px text-[12px] font-semibold leading-none transition-colors ${mode === 'manage' ? 'bg-card text-foreground ring-1 ring-border/50' : 'text-muted-foreground hover:text-foreground'}`}>Manage</button>
+          <button onClick={() => setMode('kitchen')} aria-current={mode === 'kitchen' ? 'page' : undefined} className={`inline-flex h-9 min-w-[84px] items-center justify-center rounded-full px-4 text-center text-[12px] font-semibold leading-none transition-colors ${mode === 'kitchen' ? 'bg-card text-foreground ring-1 ring-border/50' : 'text-muted-foreground hover:text-foreground'}`}><span className="optical-label">Kitchen</span></button>
+          <button onClick={() => setMode('manage')} aria-current={mode === 'manage' ? 'page' : undefined} className={`inline-flex h-9 min-w-[84px] items-center justify-center rounded-full px-4 text-center text-[12px] font-semibold leading-none transition-colors ${mode === 'manage' ? 'bg-card text-foreground ring-1 ring-border/50' : 'text-muted-foreground hover:text-foreground'}`}><span className="optical-label">Manage</span></button>
         </nav>
 
         <div className="flex items-center justify-self-end gap-2 text-[12px] font-semibold text-muted-foreground">
@@ -341,23 +404,39 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
           greeting={greeting}
           openShopping={openShopping}
           openReminders={openReminders}
+          activeNotes={activeNotes}
+          activeTimers={activeTimers}
+          clockNow={clockNow}
           panchanga={panchanga}
           onVoice={beginVoice}
           onManage={() => setMode('manage')}
           onMeal={openMeal}
           onToggle={toggle}
+          onPinNote={pinFamilyNote}
         />
       ) : (
         <ManageView
           data={data}
           openShopping={openShopping}
           openReminders={openReminders}
+          activeNotes={activeNotes}
+          activeTimers={activeTimers}
+          clockNow={clockNow}
           listItem={listItem}
+          familyNote={familyNote}
+          timerLabel={timerLabel}
+          timerMinutes={timerMinutes}
           onListItem={setListItem}
+          onFamilyNote={setFamilyNote}
+          onTimerLabel={setTimerLabel}
+          onTimerMinutes={setTimerMinutes}
           onAddList={submitListItem}
+          onAddFamilyNote={submitFamilyNote}
+          onStartTimer={submitTimer}
           onVoice={beginVoice}
           onMeal={openMeal}
           onToggle={toggle}
+          onPinNote={pinFamilyNote}
         />
       )}
 
@@ -407,10 +486,11 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
   );
 }
 
-function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, panchanga, onVoice, onManage, onMeal, onToggle }: {
-  data: DashboardData; dateLabel: string; greeting: string; openShopping: ShoppingItem[]; openReminders: Reminder[]; panchanga: PanchangaSnapshot;
+function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, activeNotes, activeTimers, clockNow, panchanga, onVoice, onManage, onMeal, onToggle, onPinNote }: {
+  data: DashboardData; dateLabel: string; greeting: string; openShopping: ShoppingItem[]; openReminders: Reminder[]; activeNotes: FamilyNote[]; activeTimers: KitchenTimer[]; clockNow: number; panchanga: PanchangaSnapshot;
   onVoice: () => void; onManage: () => void; onMeal: (meal: Meal) => void;
-  onToggle: (resource: 'shopping' | 'reminder', id: string, completed: boolean) => void;
+  onToggle: (resource: ToggleResource, id: string, completed: boolean) => void;
+  onPinNote: (id: string, pinned: boolean) => void;
 }) {
   return (
     <div className="kitchen-view mx-auto grid max-w-[1500px] gap-4 p-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(290px,.78fr)] lg:p-5">
@@ -428,25 +508,25 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, p
             <article key={meal.id} className={`meal-card meal-${mealTone[meal.slot]} group`}>
               <div className="flex items-center justify-between">
                 <span className="meal-icon"><UtensilsCrossed className="size-4" /></span>
-                {index === 0 && <span className="rounded-full bg-white/55 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]">Next</span>}
+                {index === 0 && <span className="inline-flex min-h-7 items-center justify-center rounded-full bg-white/55 px-2.5 text-[10px] font-bold uppercase tracking-[0.1em]"><span className="optical-label">Next</span></span>}
               </div>
               <div className="meal-card-content mt-7">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] opacity-65">{mealLabels[meal.slot]} · {meal.time}</p>
                 <h2 className="meal-card-title mt-1.5 font-display text-[21px] font-semibold leading-[1.12] tracking-[-0.025em]">{meal.dish}</h2>
               </div>
-              <button onClick={() => onMeal(meal)} className="meal-card-change mt-3 flex items-center gap-1 text-[12px] font-semibold opacity-60 transition-opacity group-hover:opacity-100">Change <ChevronRight className="size-3.5" /></button>
+              <button onClick={() => onMeal(meal)} className="meal-card-change mt-3 flex items-center gap-1 text-[12px] font-semibold opacity-60 transition-opacity group-hover:opacity-100"><span className="optical-label">Change</span> <ChevronRight className="size-3.5" /></button>
             </article>
           ))}
         </div>
 
-        <div className="secondary-grid mt-4 grid gap-4 md:grid-cols-[1.15fr_.85fr]">
+        <div className="secondary-grid mt-4 grid gap-4 md:grid-cols-2">
           <article className="surface-card">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="section-icon"><Bell className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Coming up</h2></div>
               <Button onClick={onVoice} variant="ghost" size="sm" className="rounded-full text-muted-foreground"><Plus /> Add</Button>
             </div>
             <div className="divide-y divide-border/70">
-              {openReminders.slice(0, 3).map((reminder) => (
+              {openReminders.slice(0, 2).map((reminder) => (
                 <div key={reminder.id} className="grid grid-cols-[1fr_auto] items-center gap-3 py-3.5">
                   <div><p className="text-[14px] font-semibold">{reminder.title}</p><p className="mt-1 text-[11px] font-medium text-primary">{formatReminder(reminder)}</p></div>
                   <button onClick={() => onToggle('reminder', reminder.id, true)} aria-label={`Complete ${reminder.title}`} className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"><Check className="size-4" /></button>
@@ -456,23 +536,46 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, p
             </div>
           </article>
 
-          <article className="surface-card">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><span className="section-icon"><ShoppingBasket className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Shopping</h2></div>
-              <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-bold text-secondary-foreground">{openShopping.length} left</span>
+          <article className="surface-card compact-dashboard-card">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2.5"><span className="section-icon"><MessageSquareText className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Family board</h2></div>
+              <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground" aria-label="Add family note by voice"><Mic className="size-3.5" /></Button>
             </div>
-            <div className="space-y-1">
-              {openShopping.slice(0, 3).map((item) => (
-                <button key={item.id} onClick={() => onToggle('shopping', item.id, true)} className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left text-sm font-medium hover:text-primary"><span className="grid size-[19px] place-items-center rounded-md border-[1.5px] border-border bg-background" />{item.name}</button>
+            <div className="space-y-2">
+              {activeNotes.slice(0, 2).map((note) => (
+                <div key={note.id} className={`flex items-center gap-2 rounded-xl px-2.5 py-2 ${note.pinned ? 'pinned-note' : 'bg-background/45'}`}>
+                  <p className="line-clamp-2 min-w-0 flex-1 text-[12px] font-semibold leading-snug">{note.message}</p>
+                  <button onClick={() => onPinNote(note.id, !note.pinned)} className={`grid size-7 shrink-0 place-items-center rounded-full hover:bg-white/50 ${note.pinned ? 'text-[#9a5d59]' : 'text-muted-foreground'}`} aria-label={`${note.pinned ? 'Unpin' : 'Pin'} note: ${note.message}`} aria-pressed={Boolean(note.pinned)}><Pin className="size-3.5" fill={note.pinned ? 'currentColor' : 'none'} /></button>
+                  <button onClick={() => onToggle('note', note.id, true)} className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Remove note: ${note.message}`}><X className="size-3.5" /></button>
+                </div>
               ))}
+              {!activeNotes.length && <button onClick={onVoice} className="w-full py-7 text-left text-[13px] font-medium text-muted-foreground">Say “add a family note…”</button>}
             </div>
-            <button onClick={onManage} className="mt-3 flex items-center gap-1 text-[12px] font-bold text-primary">View full list <ChevronRight className="size-3.5" /></button>
           </article>
         </div>
       </section>
 
-      <aside className="min-w-0">
+      <aside className="kitchen-sidebar min-w-0">
         <PanchangaCard snapshot={panchanga} />
+        <div className="sidebar-utilities grid grid-cols-2 gap-3">
+          <article className="surface-card compact-utility-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2"><span className="section-icon"><ShoppingBasket className="size-4" /></span><h2 className="font-display text-[17px] font-semibold">Shopping</h2></div>
+              <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold">{openShopping.length}</span>
+            </div>
+            <button onClick={onManage} className="mt-3 flex items-center gap-1 text-[12px] font-bold text-primary"><span className="optical-label">Open list</span> <ChevronRight className="size-3.5" /></button>
+          </article>
+          <article className="surface-card compact-utility-card" aria-live="polite">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2"><span className="section-icon"><TimerReset className="size-4" /></span><h2 className="font-display text-[17px] font-semibold">Timers</h2></div>
+              <button onClick={onVoice} className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary" aria-label="Start timer by voice"><Mic className="size-3.5" /></button>
+            </div>
+            {activeTimers.length ? activeTimers.slice(0, 1).map((timer) => {
+              const remaining = formatTimerRemaining(timer.ends_at, clockNow);
+              return <button key={timer.id} onClick={() => onToggle('timer', timer.id, true)} className="mt-3 flex w-full items-center justify-between gap-2 text-left"><span className="truncate text-[12px] font-semibold">{timer.label}</span><time dateTime={timer.ends_at} className="font-display text-[14px] font-bold tabular-nums">{remaining}</time></button>;
+            }) : <button onClick={onVoice} className="mt-3 text-left text-[11px] font-medium text-muted-foreground">Start by voice</button>}
+          </article>
+        </div>
       </aside>
     </div>
   );
@@ -518,7 +621,7 @@ function PanchangaCard({ snapshot }: { snapshot: PanchangaSnapshot }) {
                 <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#76674e]">{alert.daysAway === 0 ? 'Today' : `In ${alert.daysAway} day${alert.daysAway === 1 ? '' : 's'}`}</p>
                 <p className="truncate text-[12px] font-bold text-[#3f3b33]">{alert.title}{alert.moreCount ? ` · +${alert.moreCount} more` : ''}</p>
               </div>
-              {alert.isEkadashi && <span className="rounded-full bg-white/55 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#6b624f]">Ekadashi</span>}
+              {alert.isEkadashi && <span className="inline-flex min-h-7 items-center justify-center rounded-full bg-white/55 px-2 text-[9px] font-bold uppercase tracking-wide text-[#6b624f]"><span className="optical-label">Ekadashi</span></span>}
             </div>
           ))}
           {alerts.length > visibleAlerts.length && <p className="px-1 text-[9px] font-semibold text-[#767976]">+{alerts.length - visibleAlerts.length} more within five days</p>}
@@ -555,10 +658,13 @@ function PanchangaFact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ManageView({ data, openShopping, openReminders, listItem, onListItem, onAddList, onVoice, onMeal, onToggle }: {
-  data: DashboardData; openShopping: ShoppingItem[]; openReminders: Reminder[]; listItem: string;
-  onListItem: (value: string) => void; onAddList: (event: SyntheticEvent<HTMLFormElement>) => void; onVoice: () => void;
-  onMeal: (meal: Meal) => void; onToggle: (resource: 'shopping' | 'reminder', id: string, completed: boolean) => void;
+function ManageView({ data, openShopping, openReminders, activeNotes, activeTimers, clockNow, listItem, familyNote, timerLabel, timerMinutes, onListItem, onFamilyNote, onTimerLabel, onTimerMinutes, onAddList, onAddFamilyNote, onStartTimer, onVoice, onMeal, onToggle, onPinNote }: {
+  data: DashboardData; openShopping: ShoppingItem[]; openReminders: Reminder[]; activeNotes: FamilyNote[]; activeTimers: KitchenTimer[]; clockNow: number;
+  listItem: string; familyNote: string; timerLabel: string; timerMinutes: string;
+  onListItem: (value: string) => void; onFamilyNote: (value: string) => void; onTimerLabel: (value: string) => void; onTimerMinutes: (value: string) => void;
+  onAddList: (event: SyntheticEvent<HTMLFormElement>) => void; onAddFamilyNote: (event: SyntheticEvent<HTMLFormElement>) => void; onStartTimer: (event: SyntheticEvent<HTMLFormElement>) => void;
+  onVoice: () => void; onMeal: (meal: Meal) => void; onToggle: (resource: ToggleResource, id: string, completed: boolean) => void;
+  onPinNote: (id: string, pinned: boolean) => void;
 }) {
   return (
     <div className="mx-auto max-w-[1180px] p-5 pb-24 lg:p-9">
@@ -589,13 +695,42 @@ function ManageView({ data, openShopping, openReminders, listItem, onListItem, o
 
         <section className="surface-card !p-5 sm:!p-6">
           <div className="mb-5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="section-icon"><ShoppingBasket className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Shopping list</h2><p className="text-[11px] text-muted-foreground">{openShopping.length} items left</p></div></div></div>
-          <form onSubmit={onAddList} className="mb-3 flex gap-2"><Input value={listItem} onChange={(event) => onListItem(event.target.value)} placeholder="Add an item" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!listItem.trim()} className="size-10 rounded-xl" aria-label="Add item"><Plus /></Button></form>
+          <form onSubmit={onAddList} className="mb-3 flex items-center gap-2"><Input value={listItem} onChange={(event) => onListItem(event.target.value)} placeholder="Add an item" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!listItem.trim()} className="size-10 rounded-xl" aria-label="Add item"><Plus /></Button></form>
           <div className="max-h-[260px] space-y-1 overflow-auto pr-1">
             {data.shopping.map((item) => (
               <button key={item.id} onClick={() => onToggle('shopping', item.id, !item.completed)} className={`flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left text-sm font-medium hover:bg-secondary/60 ${item.completed ? 'text-muted-foreground line-through' : ''}`}>
                 <span className={`grid size-5 place-items-center rounded-md border ${item.completed ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'}`}>{item.completed ? <Check className="size-3.5" /> : null}</span>{item.name}
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="surface-card !p-5 sm:!p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-3"><span className="section-icon"><MessageSquareText className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Family board</h2><p className="text-[11px] text-muted-foreground">Short notes everyone can see</p></div></div>
+            <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full" aria-label="Add family note by voice"><Mic /></Button>
+          </div>
+          <form onSubmit={onAddFamilyNote} className="mb-3 flex items-center gap-2"><Input value={familyNote} onChange={(event) => onFamilyNote(event.target.value)} placeholder="Leave a note for the family" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!familyNote.trim()} className="size-10 rounded-xl" aria-label="Add note"><Plus /></Button></form>
+          <div className="space-y-2">
+            {activeNotes.map((note) => (
+              <div key={note.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${note.pinned ? 'pinned-note' : 'border-transparent bg-background/60'}`}><p className="min-w-0 flex-1 text-sm font-medium">{note.message}</p><button onClick={() => onPinNote(note.id, !note.pinned)} className={`grid size-8 shrink-0 place-items-center rounded-full hover:bg-white/55 ${note.pinned ? 'text-[#9a5d59]' : 'text-muted-foreground'}`} aria-label={`${note.pinned ? 'Unpin' : 'Pin'} note: ${note.message}`} aria-pressed={Boolean(note.pinned)}><Pin className="size-4" fill={note.pinned ? 'currentColor' : 'none'} /></button><button onClick={() => onToggle('note', note.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Remove note: ${note.message}`}><X className="size-4" /></button></div>
+            ))}
+            {!activeNotes.length && <p className="py-6 text-center text-sm text-muted-foreground">No family notes right now.</p>}
+          </div>
+        </section>
+
+        <section className="surface-card !p-5 sm:!p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-3"><span className="section-icon"><TimerReset className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Kitchen timers</h2><p className="text-[11px] text-muted-foreground">Start here or say it naturally</p></div></div>
+            <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full" aria-label="Start timer by voice"><Mic /></Button>
+          </div>
+          <form onSubmit={onStartTimer} className="mb-3 grid grid-cols-[1fr_84px_40px] items-center gap-2"><Input value={timerLabel} onChange={(event) => onTimerLabel(event.target.value)} placeholder="Rice" className="h-10 rounded-xl px-3" /><Input value={timerMinutes} onChange={(event) => onTimerMinutes(event.target.value)} inputMode="numeric" type="number" min="1" max="1440" aria-label="Timer duration in minutes" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!timerLabel.trim() || !timerMinutes} className="size-10 rounded-xl" aria-label="Start timer"><Plus /></Button></form>
+          <div className="space-y-2" aria-live="polite">
+            {activeTimers.map((timer) => {
+              const remaining = formatTimerRemaining(timer.ends_at, clockNow);
+              return <div key={timer.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${remaining === 'Done' ? 'bg-[#e4d8c3]' : 'bg-background/60'}`}><p className="min-w-0 flex-1 truncate text-sm font-semibold">{timer.label}</p><time dateTime={timer.ends_at} className="font-display font-bold tabular-nums">{remaining}</time><button onClick={() => onToggle('timer', timer.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Dismiss ${timer.label} timer`}><X className="size-4" /></button></div>;
+            })}
+            {!activeTimers.length && <p className="py-6 text-center text-sm text-muted-foreground">No timers running.</p>}
           </div>
         </section>
 

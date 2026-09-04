@@ -2,6 +2,8 @@ export type CommandAction =
   | { type: 'add_reminder'; title: string; dueAt: string; recurrence: string | null; confirmation: string }
   | { type: 'add_shopping'; items: string[]; confirmation: string }
   | { type: 'set_meal'; slot: 'breakfast' | 'lunch' | 'dinner'; dish: string; day: string; confirmation: string }
+  | { type: 'add_family_note'; message: string; confirmation: string }
+  | { type: 'start_timer'; label: string; endsAt: string; confirmation: string }
   | { type: 'unknown'; confirmation: string };
 
 const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -83,9 +85,51 @@ function parseReminder(text: string, now: Date): CommandAction {
   return { type: 'add_reminder', title: titleCase(title), dueAt: due.toISOString(), recurrence, confirmation: `Done — I’ll remind you ${cadence}.` };
 }
 
+function parseTimer(text: string, now: Date): CommandAction | null {
+  const duration = text.match(/(\d+(?:\.\d+)?)\s*(second|minute|hour)s?/i);
+  if (!duration) return null;
+  const amount = Number(duration[1]);
+  const unit = duration[2].toLowerCase();
+  const milliseconds = unit === 'second' ? amount * 1_000 : unit === 'hour' ? amount * 3_600_000 : amount * 60_000;
+  if (!Number.isFinite(milliseconds) || milliseconds < 1_000 || milliseconds > 86_400_000) return null;
+
+  const label = text
+    .replace(/^(please\s+)?(start|set|begin)\s+(?:a\s+)?/i, '')
+    .replace(/(?:for\s+)?\d+(?:\.\d+)?\s*(?:second|minute|hour)s?/i, '')
+    .replace(/\btimer\b/gi, '')
+    .replace(/^\s*(a|for|called|named)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim() || 'Kitchen';
+  const endsAt = new Date(now.getTime() + milliseconds).toISOString();
+  const readableDuration = `${amount} ${unit}${amount === 1 ? '' : 's'}`;
+  return { type: 'start_timer', label: titleCase(label), endsAt, confirmation: `${titleCase(label)} timer started for ${readableDuration}.` };
+}
+
+function parseFamilyNote(text: string): CommandAction | null {
+  const message = text
+    .replace(/^(please\s+)?(add|put|leave|write|post)\s+/i, '')
+    .replace(/^(?:a\s+)?(?:family|household)\s+(?:note|message)\s*/i, '')
+    .replace(/\s+(?:to|on)\s+(?:the\s+)?(?:family|household)\s+(?:board|notes?).*$/i, '')
+    .replace(/^(that|saying)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!message) return null;
+  return { type: 'add_family_note', message, confirmation: 'Added that to the family board.' };
+}
+
 export function parseCommand(text: string, now = new Date()): CommandAction {
   const clean = text.trim();
   const lower = clean.toLowerCase();
+  if (/\btimer\b/i.test(lower)) {
+    const timer = parseTimer(clean, now);
+    if (timer) return timer;
+  }
+
+  if (/\b(?:family|household)\s+(?:board|note|message)s?\b|\bnote\b.*\b(?:family|everyone|home)\b/i.test(lower)) {
+    const note = parseFamilyNote(clean);
+    if (note) return note;
+  }
+
   if (/\b(remind|reminder)\b/i.test(lower)) return parseReminder(clean, now);
 
   if (/\b(add|put|get|buy|need)\b.*\b(shopping|grocery|list)\b|\b(shopping|grocery)\s+list\b/i.test(lower)) {
@@ -114,5 +158,5 @@ export function parseCommand(text: string, now = new Date()): CommandAction {
     if (dish) return { type: 'set_meal', slot, dish: titleCase(dish), day, confirmation: `${titleCase(slot)} is set to ${titleCase(dish)}.` };
   }
 
-  return { type: 'unknown', confirmation: 'I can add shopping items, plan a meal, or set one-time and repeating reminders. Try “remind me every day at 7 PM to water the tulsi.”' };
+  return { type: 'unknown', confirmation: 'I can manage shopping, meals, reminders, kitchen timers, and family notes. Try “start a 12-minute rice timer.”' };
 }
