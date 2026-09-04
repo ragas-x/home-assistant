@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Kolkata
+    ports:
+      - "${KITCHEN_HTTP_PORT:-3000}:3000"
     volumes:
       - ${KITCHEN_DATA_DIR:-/DATA/AppData/kitchen-dashboard/data}:/data
     healthcheck:
@@ -19,19 +21,3 @@ services:
       timeout: 8s
       retries: 5
       start_period: 30s
-
-  https:
-    image: caddy:2-alpine
-    container_name: kitchen-dashboard-https
-    restart: unless-stopped
-    depends_on:
-      dashboard:
-        condition: service_healthy
-    environment:
-      KITCHEN_HTTPS_PORT: ${KITCHEN_HTTPS_PORT:-9443}
-    ports:
-      - "${KITCHEN_HTTPS_PORT:-9443}:${KITCHEN_HTTPS_PORT:-9443}"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ${KITCHEN_CADDY_DIR:-/DATA/AppData/kitchen-dashboard/caddy}:/data
-      - ${KITCHEN_CADDY_CONFIG_DIR:-/DATA/AppData/kitchen-dashboard/caddy-config}:/config

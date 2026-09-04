@@ -1,6 +1,6 @@
 # ZimaOS deployment
 
-This deployment runs the dashboard and its local D1-compatible data store in Docker. Caddy exposes it at `https://192.168.1.6:9443`, which is required for microphone access on iPadOS.
+This deployment runs the dashboard and its local D1-compatible data store in Docker. It exposes a plain HTTP origin at `http://192.168.1.6:3000` for a Cloudflare Tunnel or another external reverse proxy.
 
 ## First installation
 
@@ -32,20 +32,12 @@ The script only deploys after a successful push. Override the SSH user or server
 .\scripts\push-and-deploy.ps1 -User "your-zima-user" -RemotePath "/DATA/AppData/kitchen-dashboard/source"
 ```
 
-Port `9443` is the default. If it is occupied, choose another unused port:
+Port `3000` is the default. If it is occupied, choose another unused port:
 
 ```powershell
-.\scripts\push-and-deploy.ps1 -HttpsPort 10443
+.\scripts\push-and-deploy.ps1 -HttpPort 3001
 ```
 
 ## Enable voice on the iPad
 
-Caddy creates a private certificate authority for local HTTPS. After the first deployment, copy this certificate from the server to the iPad:
-
-```text
-/DATA/AppData/kitchen-dashboard/caddy/pki/authorities/local/root.crt
-```
-
-Install the profile on the iPad, then enable it under **Settings → General → About → Certificate Trust Settings**. Open the dashboard at `https://192.168.1.6:9443` and allow microphone access.
-
-The private key under the same Caddy directory must remain on the server and must never be copied or shared.
+Configure Cloudflare to proxy to `http://192.168.1.6:3000`, then open the public HTTPS hostname on the iPad and allow microphone access. The dashboard container itself does not manage TLS certificates.
