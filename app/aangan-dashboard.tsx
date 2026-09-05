@@ -739,7 +739,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
         <div className="kitchen-greeting mb-4 flex items-end justify-between px-1">
           <div>
             <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-primary">{dateLabel}</p>
-            <h1 className="font-display text-[clamp(32px,3.6vw,48px)] font-semibold leading-[1.04] tracking-[-0.045em]">{greeting}, home.</h1>
+            <h1 className="font-display text-[clamp(32px,3.6vw,48px)] font-semibold leading-[1.04] tracking-[-0.045em]">{greeting}.</h1>
           </div>
           <p className="hidden pb-1 text-right text-sm leading-relaxed text-muted-foreground md:block">Everything that matters,<br />at a glance.</p>
         </div>
@@ -769,9 +769,9 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
                 <Button onClick={onVoice} variant="ghost" size="sm" className="rounded-full text-muted-foreground"><Plus /> Add</Button>
               </div>
             </div>
-            <div className="divide-y divide-border/70">
+            <div className="space-y-2">
               {openReminders.slice(0, 2).map((reminder) => (
-                <div key={reminder.id} className="grid grid-cols-[1fr_auto] items-center gap-3 py-3.5">
+                <div key={reminder.id} className="dashboard-list-item grid grid-cols-[1fr_auto] items-center gap-3 rounded-[14px] px-3 py-3">
                   <div className="optical-copy"><p className="text-[14px] font-semibold">{reminder.title}</p><p className="mt-1 text-[11px] font-medium text-primary">{formatReminder(reminder)}</p></div>
                   <button onClick={() => onToggle('reminder', reminder.id, true)} aria-label={`Complete ${reminder.title}`} className="grid size-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"><Check className="size-4" /></button>
                 </div>
@@ -787,7 +787,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
             </div>
             <div className="space-y-1">
               {openShopping.slice(0, 3).map((item) => (
-                <button key={item.id} onClick={() => onToggle('shopping', item.id, true)} className="flex w-full items-center gap-3 rounded-xl px-1 py-2 text-left text-sm font-medium hover:text-primary"><span className="grid size-[19px] place-items-center rounded-md border-[1.5px] border-border bg-background" /><span className="optical-copy">{item.name}</span></button>
+                <button key={item.id} onClick={() => onToggle('shopping', item.id, true)} className="dashboard-list-item flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-sm font-medium hover:text-primary"><span className="grid size-[19px] place-items-center rounded-md border-[1.5px] border-border bg-background" /><span className="optical-copy">{item.name}</span></button>
               ))}
               {!openShopping.length && <p className="py-5 text-center text-sm text-muted-foreground">The shopping list is clear.</p>}
             </div>
@@ -920,13 +920,13 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
 
   return (
     <article key="detail" className={`panchanga-card panchanga-flip-content ${panchangaLoading ? 'opacity-55' : ''}`}>
-      <div className="flex items-start justify-between gap-4">
+      <div className="panchanga-header flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="panchanga-eyebrow text-[10px] font-bold uppercase tracking-[0.14em] text-[#65777a]">Panchanga · Bellary</p>
-          <h2 lang="kn" className="mt-2 truncate font-display text-[31px] font-bold leading-[1.15] tracking-[-0.015em]" title={today.tithi}>{today.tithi}</h2>
-          <p lang="kn" className="panchanga-cycle mt-1.5 truncate text-sm font-semibold text-[#5f6462]" title={`${today.masa} · ${today.rutu} · ${today.paksha}`}>{today.masa} · {today.rutu} · {today.paksha}</p>
+          <h2 lang="kn" className="panchanga-tithi mt-1.5 pt-1 font-display text-[31px] font-bold leading-[1.3] tracking-[-0.015em]" title={today.tithi}>{today.tithi}</h2>
+          <p className="panchanga-date mt-1 text-[9px] font-bold uppercase tracking-[0.11em] text-[#737875]/75">{new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${today.date}T12:00:00Z`))}</p>
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-1">
+        <div className="panchanga-controls grid shrink-0 grid-cols-2 gap-1">
           <button onClick={() => void loadDate(shiftDateKey(today.date, -1))} disabled={today.date === '2026-01-01'} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Previous Panchanga day"><ArrowLeft className="size-3.5" /></button>
           <button onClick={() => void loadDate(shiftDateKey(today.date, 1))} disabled={today.date === '2026-12-31'} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Next Panchanga day"><ArrowRight className="size-3.5" /></button>
           <button onClick={openCalendar} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Open Panchanga calendar"><CalendarRange className="size-3.5" /></button>
@@ -934,10 +934,15 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
         </div>
       </div>
 
-      <p className="panchanga-date mt-2 text-[9px] font-bold uppercase tracking-[0.11em] text-[#737875]/75">{new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${today.date}T12:00:00Z`))}</p>
+      <div className="panchanga-cycle-stack mt-3">
+        <p lang="kn" className="panchanga-cycle-value" title={today.masa}>{today.masa}</p>
+        <p lang="kn" className="panchanga-cycle-value" title={today.rutu}>{today.rutu}</p>
+        <p lang="kn" className="panchanga-cycle-value" title={today.paksha}>{today.paksha}</p>
+        <p lang="kn" className="panchanga-cycle-value is-secondary" title={today.samvatsara}>{today.samvatsara}</p>
+      </div>
 
-      <p lang="kn" className="mt-3 truncate text-[9px] font-medium text-[#737875]/80" title={`${today.samvatsara} · ${today.ayana} · ${today.vasara}`}>
-        {today.samvatsara} · {today.ayana} · {today.vasara}
+      <p lang="kn" className="panchanga-epoch mt-2 truncate text-[9px] font-medium text-[#737875]/80" title={`${today.ayana} · ${today.vasara}`}>
+        {today.ayana} · {today.vasara}
       </p>
 
       {visibleAlerts.length > 0 && (
@@ -956,7 +961,7 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#858781]/20 pt-4">
+      <div className="panchanga-facts mt-4 grid grid-cols-2 gap-x-4 gap-y-4 border-t border-[#858781]/20 pt-4">
         <PanchangaFact label="Nakshatra" value={today.nakshatra} />
         <PanchangaFact label="Yoga" value={today.yoga} />
         <PanchangaFact label="Karana" value={today.karana} />
@@ -1027,7 +1032,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           <form onSubmit={onAddList} className="mb-3 flex items-center gap-2"><Input value={listItem} onChange={(event) => onListItem(event.target.value)} placeholder="Add an item" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!listItem.trim()} className="size-10 rounded-xl" aria-label="Add item"><Plus /></Button></form>
           <div className="max-h-[260px] space-y-1 overflow-auto pr-1">
             {data.shopping.map((item) => (
-              <div key={item.id} className={`flex items-center rounded-xl pr-1 text-sm font-medium hover:bg-secondary/60 ${item.completed ? 'text-muted-foreground' : ''}`}>
+              <div key={item.id} className={`dashboard-list-item flex items-center rounded-xl pr-1 text-sm font-medium ${item.completed ? 'text-muted-foreground' : ''}`}>
                 <button onClick={() => onToggle('shopping', item.id, !item.completed)} className={`flex min-w-0 flex-1 items-center gap-3 px-2 py-2.5 text-left ${item.completed ? 'line-through' : ''}`}>
                   <span className={`grid size-5 shrink-0 place-items-center rounded-md border ${item.completed ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background'}`}>{item.completed ? <Check className="size-3.5" /> : null}</span><span className="optical-copy truncate">{item.name}</span>
                 </button>
