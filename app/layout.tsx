@@ -45,7 +45,11 @@ export default function RootLayout({
     <html
       lang="en-IN"
       className={`${notoKannada.variable} ${anekKannada.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{const t=localStorage.getItem('home-theme');const d=t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.classList.toggle('dark',d)}catch{}` }} />
+      </head>
       <body className="antialiased">
         {children}
       </body>

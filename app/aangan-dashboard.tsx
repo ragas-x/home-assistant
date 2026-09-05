@@ -23,6 +23,7 @@ import {
   ShoppingBasket,
   Sparkles,
   Sunrise,
+  Sun,
   TimerReset,
   UtensilsCrossed,
   Volume2,
@@ -39,6 +40,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import type { PanchangaMonthDay, PanchangaSnapshot } from '@/lib/panchanga';
 
 type Meal = { id: string; day: string; slot: 'breakfast' | 'lunch' | 'dinner'; dish: string; time: string };
@@ -135,6 +137,7 @@ function makeUtcDate(year: number, month: number, day = 1) {
 export default function KitchenDashboard({ initialNow, panchanga }: { initialNow: string; panchanga: PanchangaSnapshot }) {
   const renderDate = useMemo(() => new Date(initialNow), [initialNow]);
   const [mode, setMode] = useState<'kitchen' | 'manage'>('kitchen');
+  const [darkMode, setDarkMode] = useState(false);
   const [data, setData] = useState<DashboardData>(createEmptyData);
   const [commandOpen, setCommandOpen] = useState(false);
   const [command, setCommand] = useState('');
@@ -186,6 +189,25 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
     const timer = window.setInterval(() => setClockNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const saved = window.localStorage.getItem('home-theme');
+      const dark = saved ? saved === 'dark' : media.matches;
+      document.documentElement.classList.toggle('dark', dark);
+      setDarkMode(dark);
+    };
+    applyTheme();
+    media.addEventListener?.('change', applyTheme);
+    return () => media.removeEventListener?.('change', applyTheme);
+  }, []);
+
+  function toggleDarkMode(checked: boolean) {
+    window.localStorage.setItem('home-theme', checked ? 'dark' : 'light');
+    document.documentElement.classList.toggle('dark', checked);
+    setDarkMode(checked);
+  }
 
   const playReminderChime = useCallback(() => {
     const context = audioContextRef.current;
@@ -558,9 +580,13 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
           <button onClick={() => setMode('manage')} aria-current={mode === 'manage' ? 'page' : undefined} className={`inline-flex h-9 min-w-[84px] items-center justify-center rounded-full px-4 text-center text-[12px] font-semibold leading-none transition-colors ${mode === 'manage' ? 'bg-card text-foreground ring-1 ring-border/50' : 'text-muted-foreground hover:text-foreground'}`}><span className="optical-label">Manage</span></button>
         </nav>
 
-        <div className="flex items-center justify-self-end gap-2 text-[12px] font-semibold text-muted-foreground">
-          <CloudSun className="size-[17px] text-primary/80" />
-          <span className="optical-copy">29°<span className="hidden md:inline"> · Bellary</span></span>
+        <div className="flex items-center justify-self-end gap-3 text-[12px] font-semibold text-muted-foreground">
+          <div className="hidden items-center gap-2 sm:flex"><CloudSun className="size-[17px] text-primary/80" /><span className="optical-copy">29°<span className="hidden lg:inline"> · Bellary</span></span></div>
+          <div className="flex h-9 items-center gap-2 rounded-full border border-border/70 bg-card/70 px-2.5 shadow-sm" title="Appearance follows your system until changed">
+            <Sun className={`size-3.5 ${darkMode ? 'text-muted-foreground/55' : 'text-primary'}`} aria-hidden="true" />
+            <Switch checked={darkMode} onCheckedChange={toggleDarkMode} aria-label="Use dark mode" />
+            <MoonStar className={`size-3.5 ${darkMode ? 'text-primary' : 'text-muted-foreground/55'}`} aria-hidden="true" />
+          </div>
         </div>
       </header>
 
