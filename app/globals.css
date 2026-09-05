@@ -117,6 +117,7 @@
 .festival-alert-today { background: #e4d8c3; }
 .festival-alert-icon { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 999px; background: rgb(255 255 255 / 48%); color: #76674e; }
 .floating-voice-button { position: fixed; right: max(18px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 40; display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid rgb(255 255 255 / 16%); border-radius: 999px; color: #f4f8f8; background: #2d3434; box-shadow: 0 10px 26px rgb(37 42 42 / 20%), 0 0 0 5px rgb(150 230 252 / 7%); transition: transform .18s ease, box-shadow .18s ease; }
+.floating-voice-button.is-home { width: 60px; height: 60px; }
 .floating-voice-button:hover { transform: translateY(-2px); box-shadow: 0 13px 30px rgb(37 42 42 / 22%), 0 0 0 6px rgb(150 230 252 / 9%); }
 .floating-voice-button:active { transform: scale(.96); }
 .floating-voice-button.is-listening { color: #30474d; background: #b9dce2; box-shadow: 0 0 0 7px rgb(150 230 252 / 13%), 0 12px 28px rgb(37 42 42 / 24%); animation: voice-pulse 1.4s ease-in-out infinite; }

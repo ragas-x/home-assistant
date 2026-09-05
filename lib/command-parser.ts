@@ -7,6 +7,19 @@ export type CommandAction =
   | { type: 'unknown'; confirmation: string };
 
 const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const INDIA_OFFSET_MINUTES = 330;
+
+function indiaCalendarDate(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(date);
+  const number = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  return new Date(Date.UTC(number('year'), number('month') - 1, number('day')));
+}
+
+function atIndiaTime(calendarDate: Date, hour: number, minute: number) {
+  return new Date(Date.UTC(calendarDate.getUTCFullYear(), calendarDate.getUTCMonth(), calendarDate.getUTCDate(), hour, minute) - INDIA_OFFSET_MINUTES * 60_000);
+}
 
 function titleCase(value: string) {
   return value.trim().replace(/\s+/g, ' ').replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
@@ -25,8 +38,8 @@ function parseClock(text: string, fallback = 9) {
 function parseReminder(text: string, now: Date): CommandAction {
   const lower = text.toLowerCase();
   const { hour, minute } = parseClock(text);
-  const due = new Date(now);
-  due.setSeconds(0, 0);
+  const calendarDate = indiaCalendarDate(now);
+  let due: Date;
   let recurrence: string | null = null;
   const relative = lower.match(/(?:in\s+)?(\d+)\s+(minute|hour|day|week)s?\s+from\s+now|in\s+(\d+)\s+(minute|hour|day|week)s?/i);
 
@@ -34,19 +47,25 @@ function parseReminder(text: string, now: Date): CommandAction {
     const amount = Number(relative[1] || relative[3]);
     const unit = relative[2] || relative[4];
     const multiplier = unit === 'minute' ? 60_000 : unit === 'hour' ? 3_600_000 : unit === 'week' ? 604_800_000 : 86_400_000;
-    due.setTime(now.getTime() + amount * multiplier);
-    if (unit === 'day' || unit === 'week') due.setHours(hour, minute, 0, 0);
+    if (unit === 'minute' || unit === 'hour') due = new Date(now.getTime() + amount * multiplier);
+    else {
+      calendarDate.setUTCDate(calendarDate.getUTCDate() + amount * (unit === 'week' ? 7 : 1));
+      due = atIndiaTime(calendarDate, hour, minute);
+    }
   } else if (/day after tomorrow/i.test(lower)) {
-    due.setDate(due.getDate() + 2);
-    due.setHours(hour, minute, 0, 0);
+    calendarDate.setUTCDate(calendarDate.getUTCDate() + 2);
+    due = atIndiaTime(calendarDate, hour, minute);
   } else if (/tomorrow/i.test(lower)) {
-    due.setDate(due.getDate() + 1);
-    due.setHours(hour, minute, 0, 0);
+    calendarDate.setUTCDate(calendarDate.getUTCDate() + 1);
+    due = atIndiaTime(calendarDate, hour, minute);
   } else {
     const weekday = weekdays.findIndex((day) => new RegExp(`(?:next|every)\\s+${day}`, 'i').test(lower));
-    if (weekday >= 0) due.setDate(due.getDate() + ((weekday - due.getDay() + 7) % 7 || 7));
-    due.setHours(hour, minute, 0, 0);
-    if (due <= now && weekday < 0) due.setDate(due.getDate() + 1);
+    if (weekday >= 0) calendarDate.setUTCDate(calendarDate.getUTCDate() + ((weekday - calendarDate.getUTCDay() + 7) % 7 || 7));
+    due = atIndiaTime(calendarDate, hour, minute);
+    if (due <= now && weekday < 0) {
+      calendarDate.setUTCDate(calendarDate.getUTCDate() + 1);
+      due = atIndiaTime(calendarDate, hour, minute);
+    }
   }
 
   if (/every\s*day|everyday|daily/i.test(lower)) recurrence = 'DAILY';
@@ -74,6 +93,7 @@ function parseReminder(text: string, now: Date): CommandAction {
   title = title.replace(/^do\s+/i, '').trim() || 'Household reminder';
 
   const when = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
     weekday: recurrence ? undefined : 'short',
     day: recurrence ? undefined : 'numeric',
     month: recurrence ? undefined : 'short',
@@ -134,8 +154,10 @@ export function parseCommand(text: string, now = new Date()): CommandAction {
 
   if (/\b(add|put|get|buy|need)\b.*\b(shopping|grocery|list)\b|\b(shopping|grocery)\s+list\b/i.test(lower)) {
     const payload = clean
-      .replace(/^(please\s+)?(add|put|get|buy|we need)\s+/i, '')
-      .replace(/\s+(to|on|in)\s+(the\s+)?(shopping|grocery)\s+list.*$/i, '')
+      .replace(/^(please\s+)?(?:add|put|get|buy|include|(?:i|we)\s+need)\s+/i, '')
+      .replace(/\s+(?:to|on|in)\s+(?:(?:my|our|the)\s+)?(?:shopping|grocery)\s+list.*$/i, '')
+      .replace(/\s+(?:to|on|in)\s+(?:(?:my|our|the)\s+)?(?:shopping|grocery).*$/i, '')
+      .replace(/\s+(?:shopping|grocery)\s+list\s*$/i, '')
       .replace(/^(the\s+)?(shopping|grocery)\s+list\s*/i, '')
       .replace(/\s+and\s+/gi, ',');
     const items = payload.split(',').map(titleCase).filter(Boolean);
@@ -143,17 +165,23 @@ export function parseCommand(text: string, now = new Date()): CommandAction {
   }
 
   const mealMatch = lower.match(/\b(breakfast|lunch|dinner)\b/);
-  if (mealMatch && /\b(set|plan|having|have|make|is)\b/i.test(lower)) {
+  if (mealMatch && /\b(set|plan|add|change|update|replace|having|have|make|is|serve|cook)\b/i.test(lower)) {
     const slot = mealMatch[1] as 'breakfast' | 'lunch' | 'dinner';
-    const dayDate = new Date(now);
-    if (/tomorrow/i.test(lower)) dayDate.setDate(dayDate.getDate() + 1);
+    const dayDate = indiaCalendarDate(now);
+    if (/\b(?:the\s+)?day\s+after\s+tomorrow(?:['’]s)?\b/i.test(lower)) dayDate.setUTCDate(dayDate.getUTCDate() + 2);
+    else if (/\btomorrow(?:['’]s)?\b/i.test(lower)) dayDate.setUTCDate(dayDate.getUTCDate() + 1);
     const day = dayDate.toISOString().slice(0, 10);
     const dish = clean
-      .replace(/^(please\s+)?(set|plan|we(?:'re| are)?\s+having|we\s+have|make)\s+/i, '')
+      .replace(/^please\s+/i, '')
+      .replace(/^(?:set|plan|add|change|update|replace|make|serve|cook)\s+/i, '')
+      .replace(/^we(?:'re| are)?\s+(?:having|have|making|serving|cooking)\s+/i, '')
+      .replace(/^what(?:'s| is)\s+(?:planned\s+)?for\s+/i, '')
       .replace(new RegExp(`\\b${slot}\\b`, 'i'), '')
-      .replace(/\b(today|tomorrow)\b/gi, '')
-      .replace(/^(is|to|as|for)\s+/i, '')
-      .replace(/\s+(is|to|as|for)\s+/i, ' ')
+      .replace(/\b(?:the\s+)?day\s+after\s+tomorrow(?:['’]s)?\b/gi, '')
+      .replace(/\b(?:today|tomorrow)(?:['’]s)?\b/gi, '')
+      .replace(/^\s*(?:(?:is|to|as|for|will be|should be|add|set|change|update|plan|make)\s+)+/i, '')
+      .replace(/\s+(?:is|to|as|for)\s*$/i, '')
+      .replace(/\s+/g, ' ')
       .trim();
     if (dish) return { type: 'set_meal', slot, dish: titleCase(dish), day, confirmation: `${titleCase(slot)} is set to ${titleCase(dish)}.` };
   }

@@ -79,6 +79,10 @@ export async function addShopping(name: string) {
   await request(TABLES.shopping, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), name: name.trim(), completed: false, created_at: new Date().toISOString() }) });
 }
 
+export async function updateShopping(id: string, name: string) {
+  await request(`${TABLES.shopping}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ name: name.trim() }) });
+}
+
 export async function setMeal(day: string, slot: string, dish: string, time?: string) {
   const defaultTime = slot === 'breakfast' ? '8:30 AM' : slot === 'lunch' ? '1:15 PM' : '8:00 PM';
   await request(`${TABLES.meals}?on_conflict=day,slot`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), day, slot, dish: dish.trim(), time: time || defaultTime, created_at: new Date().toISOString() }) });
@@ -86,6 +90,10 @@ export async function setMeal(day: string, slot: string, dish: string, time?: st
 
 export async function addReminder(title: string, dueAt: string, recurrence: string | null) {
   await request(TABLES.reminder, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), title: title.trim(), due_at: dueAt, recurrence, completed: false, created_at: new Date().toISOString() }) });
+}
+
+export async function updateReminder(id: string, title: string, dueAt?: string) {
+  await request(`${TABLES.reminder}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ title: title.trim(), ...(dueAt ? { due_at: dueAt } : {}) }) });
 }
 
 export async function acknowledgeReminder(id: string) {
@@ -110,6 +118,10 @@ export async function snoozeReminder(id: string, minutes = 10) {
 
 export async function addFamilyNote(message: string) {
   await request(TABLES.note, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), message: message.trim(), pinned: false, completed: false, created_at: new Date().toISOString() }) });
+}
+
+export async function updateFamilyNote(id: string, message: string) {
+  await request(`${TABLES.note}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ message: message.trim() }) });
 }
 
 export async function setFamilyNotePinned(id: string, pinned: boolean) {
