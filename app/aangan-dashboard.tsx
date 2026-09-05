@@ -583,9 +583,9 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
         <div className="flex items-center justify-self-end gap-3 text-[12px] font-semibold text-muted-foreground">
           <div className="hidden items-center gap-2 sm:flex"><CloudSun className="size-[17px] text-primary/80" /><span className="optical-copy">29°<span className="hidden lg:inline"> · Bellary</span></span></div>
           <div className="flex h-9 items-center gap-2 rounded-full border border-border/70 bg-card/70 px-2.5 shadow-sm" title="Appearance follows your system until changed">
-            <Sun className={`size-3.5 ${darkMode ? 'text-muted-foreground/55' : 'text-primary'}`} aria-hidden="true" />
+            <Sun className={`size-3.5 ${darkMode ? 'text-muted-foreground' : 'text-primary'}`} aria-hidden="true" />
             <Switch checked={darkMode} onCheckedChange={toggleDarkMode} aria-label="Use dark mode" />
-            <MoonStar className={`size-3.5 ${darkMode ? 'text-primary' : 'text-muted-foreground/55'}`} aria-hidden="true" />
+            <MoonStar className={`size-3.5 ${darkMode ? 'text-primary' : 'text-muted-foreground'}`} aria-hidden="true" />
           </div>
         </div>
       </header>
@@ -640,14 +640,14 @@ export default function KitchenDashboard({ initialNow, panchanga }: { initialNow
 
       <Dialog open={commandOpen} onOpenChange={setCommandDialogOpen}>
         <DialogContent style={{ width: '560px', maxWidth: 'calc(100vw - 24px)', boxSizing: 'border-box' }} className="min-w-0 gap-0 overflow-hidden rounded-[26px] border-border bg-card p-0 shadow-2xl">
-          <div className="w-full min-w-0 max-w-full overflow-hidden bg-[#2d3434] p-5 text-white sm:p-6">
+          <div className="voice-command-hero w-full min-w-0 max-w-full overflow-hidden bg-[#2d3434] p-5 text-white sm:p-6">
             <DialogHeader className="min-w-0">
               <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.13em] text-white/55"><span className={`size-2 rounded-full ${listening ? 'animate-pulse bg-[#b9dce2]' : 'bg-white/30'}`} /> Voice command</div>
               <DialogTitle className="max-w-full font-display text-[30px] font-semibold tracking-[-0.035em] [overflow-wrap:anywhere]">What does the home need?</DialogTitle>
               <DialogDescription className="max-w-full whitespace-normal text-white/55 [overflow-wrap:anywhere]">Speak naturally. I understand relative dates and repeating schedules.</DialogDescription>
-              <div className={`mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border px-4 py-3 transition-colors ${listening ? 'border-[#b9dce2]/30 bg-white/[0.07]' : 'border-white/10 bg-black/10'}`}>
+              <div className={`voice-visualizer mt-4 w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border px-4 py-3 transition-colors ${listening ? 'border-[#b9dce2]/30 bg-white/[0.07]' : 'border-white/10 bg-black/10'}`}>
                 <div className="flex h-10 items-center justify-center gap-[5px] overflow-hidden" aria-hidden="true">
-                  {voiceLevels.map((level, index) => <span key={index} className={`w-[5px] rounded-full bg-[#b9dce2] transition-[height,opacity] duration-75 ${listening ? 'opacity-100' : 'opacity-25'}`} style={{ height: `${Math.max(7, level * (index % 3 === 1 ? 52 : 42))}px` }} />)}
+                  {voiceLevels.map((level, index) => <span key={index} className={`voice-level w-[5px] rounded-full bg-[#b9dce2] transition-[height,opacity] duration-75 ${listening ? 'opacity-100' : 'opacity-25'}`} style={{ height: `${Math.max(7, level * (index % 3 === 1 ? 52 : 42))}px` }} />)}
                 </div>
                 <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#b9dce2]">{listening ? 'Listening live' : processing ? 'Working on it' : 'Ready'}</p>
                 <p style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }} className="mt-1 min-h-9 w-full min-w-0 max-w-full whitespace-pre-wrap text-left text-[13px] font-medium leading-relaxed text-white/75" aria-live="polite">{command || (listening ? 'Start speaking…' : 'Tap the microphone below')}</p>
@@ -749,7 +749,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
             <article key={meal.id} className={`meal-card meal-${mealTone[meal.slot]} group`}>
               <div className="flex items-center justify-between">
                 <span className="meal-icon"><UtensilsCrossed className="size-4" /></span>
-                {index === 0 && <span className="inline-flex min-h-7 items-center justify-center rounded-full bg-white/55 px-2.5 text-[10px] font-bold uppercase tracking-[0.1em]"><span className="optical-label">Next</span></span>}
+                {index === 0 && <span className="next-badge inline-flex min-h-7 items-center justify-center rounded-full bg-white/55 px-2.5 text-[10px] font-bold uppercase tracking-[0.1em]"><span className="optical-label">Next</span></span>}
               </div>
               <div className="meal-card-content mt-7">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] opacity-65">{mealLabels[meal.slot]} · {meal.time}</p>
@@ -761,7 +761,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
         </div>
 
         <div className="secondary-grid mt-4 grid gap-4 md:grid-cols-2">
-          <article className="surface-card">
+          <article className="coming-card surface-card">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="section-icon"><Bell className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Coming up</h2></div>
               <div className="flex items-center gap-1">
@@ -780,7 +780,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
             </div>
           </article>
 
-          <article className="surface-card">
+          <article className="shopping-card surface-card">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="section-icon"><ShoppingBasket className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Shopping</h2></div>
               <span className="inline-flex min-h-7 items-center justify-center rounded-full bg-secondary px-2.5 text-[11px] font-bold text-secondary-foreground"><span className="optical-label">{openShopping.length} left</span></span>
@@ -794,7 +794,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
             <button onClick={onManage} className="mt-3 flex items-center gap-1 text-[12px] font-bold text-primary"><span className="optical-label">Open list</span> <ChevronRight className="size-3.5" /></button>
           </article>
 
-          <article className="family-board-wide surface-card compact-dashboard-card md:col-span-2">
+          <article className="family-board-wide family-card surface-card compact-dashboard-card md:col-span-2">
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2.5"><span className="section-icon"><MessageSquareText className="size-4" /></span><h2 className="font-display text-xl font-semibold tracking-[-0.025em]">Family board</h2></div>
               <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground" aria-label="Add family note by voice"><Mic className="size-3.5" /></Button>
@@ -816,7 +816,7 @@ function KitchenView({ data, dateLabel, greeting, openShopping, openReminders, a
       <aside className="kitchen-sidebar min-w-0">
         <PanchangaCard snapshot={panchanga} />
         <div className="sidebar-utilities grid grid-cols-1 gap-3">
-          <article className="surface-card compact-utility-card" aria-live="polite">
+          <article className="timer-card surface-card compact-utility-card" aria-live="polite">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2"><span className="section-icon"><TimerReset className="size-4" /></span><h2 className="font-display text-[17px] font-semibold">Timers</h2></div>
               <button onClick={onVoice} className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary" aria-label="Start timer by voice"><Mic className="size-3.5" /></button>
@@ -886,9 +886,9 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
     return (
       <article key="calendar" className="panchanga-card panchanga-flip-content">
         <div className="flex items-center justify-between gap-2">
-          <button onClick={() => moveMonth(-1)} disabled={calendarMonth === '2026-01'} className="grid size-9 place-items-center rounded-full bg-white/55 text-[#65777a] disabled:opacity-25" aria-label="Previous month"><ArrowLeft className="size-4" /></button>
+          <button onClick={() => moveMonth(-1)} disabled={calendarMonth === '2026-01'} className="panchanga-icon-button grid size-9 place-items-center rounded-full bg-white/55 text-[#65777a] disabled:opacity-25" aria-label="Previous month"><ArrowLeft className="size-4" /></button>
           <button onClick={() => setCalendarOpen(false)} className="min-w-0 text-center"><span className="block text-[9px] font-bold uppercase tracking-[0.13em] text-[#718083]">Panchanga calendar</span><span className="font-display text-[19px] font-bold">{monthLabel}</span></button>
-          <button onClick={() => moveMonth(1)} disabled={calendarMonth === '2026-12'} className="grid size-9 place-items-center rounded-full bg-white/55 text-[#65777a] disabled:opacity-25" aria-label="Next month"><ArrowRight className="size-4" /></button>
+          <button onClick={() => moveMonth(1)} disabled={calendarMonth === '2026-12'} className="panchanga-icon-button grid size-9 place-items-center rounded-full bg-white/55 text-[#65777a] disabled:opacity-25" aria-label="Next month"><ArrowRight className="size-4" /></button>
         </div>
         <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[8px] font-bold uppercase tracking-wide text-[#7b817e]">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day}>{day}</span>)}</div>
         <div className={`mt-2 grid flex-1 grid-cols-7 grid-rows-6 gap-1 ${panchangaLoading ? 'opacity-45' : ''}`}>
@@ -899,7 +899,7 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
             </button>
           ) : <span key={`empty-${index}`} />)}
         </div>
-        <button onClick={() => { void loadDate(localDay(new Date())); setCalendarOpen(false); }} className="mx-auto mt-3 rounded-full bg-white/55 px-4 py-2 text-[10px] font-bold text-[#65777a]"><span className="optical-label">Today</span></button>
+        <button onClick={() => { void loadDate(localDay(new Date())); setCalendarOpen(false); }} className="panchanga-today-button mx-auto mt-3 rounded-full bg-white/55 px-4 py-2 text-[10px] font-bold text-[#65777a]"><span className="optical-label">Today</span></button>
       </article>
     );
   }
@@ -908,8 +908,8 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
     return (
       <article className="panchanga-card">
         <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-full bg-white/55 text-[#65777a]"><MoonStar className="size-5" /></span>
-          <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#65777a]">Panchanga · Bellary</p><p className="mt-1 text-sm font-semibold">No calendar data for this date</p></div>
+          <span className="panchanga-empty-icon grid size-11 place-items-center rounded-full bg-white/55 text-[#65777a]"><MoonStar className="size-5" /></span>
+          <div><p className="panchanga-eyebrow text-[10px] font-bold uppercase tracking-[0.14em] text-[#65777a]">Panchanga · Bellary</p><p className="mt-1 text-sm font-semibold">No calendar data for this date</p></div>
         </div>
       </article>
     );
@@ -922,19 +922,19 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
     <article key="detail" className={`panchanga-card panchanga-flip-content ${panchangaLoading ? 'opacity-55' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#65777a]">Panchanga · Bellary</p>
+          <p className="panchanga-eyebrow text-[10px] font-bold uppercase tracking-[0.14em] text-[#65777a]">Panchanga · Bellary</p>
           <h2 lang="kn" className="mt-2 truncate font-display text-[31px] font-bold leading-[1.15] tracking-[-0.015em]" title={today.tithi}>{today.tithi}</h2>
-          <p lang="kn" className="mt-1.5 truncate text-sm font-semibold text-[#5f6462]" title={`${today.masa} · ${today.rutu} · ${today.paksha}`}>{today.masa} · {today.rutu} · {today.paksha}</p>
+          <p lang="kn" className="panchanga-cycle mt-1.5 truncate text-sm font-semibold text-[#5f6462]" title={`${today.masa} · ${today.rutu} · ${today.paksha}`}>{today.masa} · {today.rutu} · {today.paksha}</p>
         </div>
         <div className="grid shrink-0 grid-cols-2 gap-1">
-          <button onClick={() => void loadDate(shiftDateKey(today.date, -1))} disabled={today.date === '2026-01-01'} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Previous Panchanga day"><ArrowLeft className="size-3.5" /></button>
-          <button onClick={() => void loadDate(shiftDateKey(today.date, 1))} disabled={today.date === '2026-12-31'} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Next Panchanga day"><ArrowRight className="size-3.5" /></button>
-          <button onClick={openCalendar} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Open Panchanga calendar"><CalendarRange className="size-3.5" /></button>
-          <button onClick={() => void loadDate(localDay(new Date()))} className="grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Reset Panchanga to today"><MoonStar className="size-3.5" /></button>
+          <button onClick={() => void loadDate(shiftDateKey(today.date, -1))} disabled={today.date === '2026-01-01'} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Previous Panchanga day"><ArrowLeft className="size-3.5" /></button>
+          <button onClick={() => void loadDate(shiftDateKey(today.date, 1))} disabled={today.date === '2026-12-31'} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a] disabled:opacity-25" aria-label="Next Panchanga day"><ArrowRight className="size-3.5" /></button>
+          <button onClick={openCalendar} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Open Panchanga calendar"><CalendarRange className="size-3.5" /></button>
+          <button onClick={() => void loadDate(localDay(new Date()))} className="panchanga-icon-button grid size-8 place-items-center rounded-full bg-white/60 text-[#65777a]" aria-label="Reset Panchanga to today"><MoonStar className="size-3.5" /></button>
         </div>
       </div>
 
-      <p className="mt-2 text-[9px] font-bold uppercase tracking-[0.11em] text-[#737875]/75">{new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${today.date}T12:00:00Z`))}</p>
+      <p className="panchanga-date mt-2 text-[9px] font-bold uppercase tracking-[0.11em] text-[#737875]/75">{new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${today.date}T12:00:00Z`))}</p>
 
       <p lang="kn" className="mt-3 truncate text-[9px] font-medium text-[#737875]/80" title={`${today.samvatsara} · ${today.ayana} · ${today.vasara}`}>
         {today.samvatsara} · {today.ayana} · {today.vasara}
@@ -949,7 +949,7 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
                 <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#76674e]">{alert.daysAway === 0 ? 'Today' : `In ${alert.daysAway} day${alert.daysAway === 1 ? '' : 's'}`}</p>
                 <p className="truncate text-[12px] font-bold text-[#3f3b33]">{alert.title}{alert.moreCount ? ` · +${alert.moreCount} more` : ''}</p>
               </div>
-              {alert.isEkadashi && <span className="inline-flex min-h-7 items-center justify-center rounded-full bg-white/55 px-2 text-[9px] font-bold uppercase tracking-wide text-[#6b624f]"><span className="optical-label">Ekadashi</span></span>}
+              {alert.isEkadashi && <span className="panchanga-tag inline-flex min-h-7 items-center justify-center rounded-full bg-white/55 px-2 text-[9px] font-bold uppercase tracking-wide text-[#6b624f]"><span className="optical-label">Ekadashi</span></span>}
             </div>
           ))}
           {alerts.length > visibleAlerts.length && <p className="px-1 text-[9px] font-semibold text-[#767976]">+{alerts.length - visibleAlerts.length} more within five days</p>}
@@ -964,7 +964,7 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
       </div>
 
       {observances.length > 0 && (
-        <div className="mt-4 rounded-xl bg-white/45 px-3 py-2.5" title={observances.join(' · ')}>
+        <div className="panchanga-observances mt-4 rounded-xl bg-white/45 px-3 py-2.5" title={observances.join(' · ')}>
           <p className="text-[9px] font-bold uppercase tracking-[0.11em] text-[#727570]">Today’s observances</p>
           <p lang="kn" className="mt-1 line-clamp-2 text-[11px] font-semibold leading-relaxed text-[#555a57]">
             {observances.slice(0, 2).join(' · ')}{observances.length > 2 ? ` · +${observances.length - 2} more` : ''}
@@ -979,9 +979,9 @@ function PanchangaCard({ snapshot: initialSnapshot }: { snapshot: PanchangaSnaps
 
 function PanchangaFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#6d7777]/75">{label}</p>
-      <p lang="kn" className="mt-1 truncate text-[12px] font-semibold" title={value}>{value}</p>
+    <div className="panchanga-fact min-w-0">
+      <p className="panchanga-fact-label text-[9px] font-bold uppercase tracking-[0.1em] text-[#6d7777]/75">{label}</p>
+      <p lang="kn" className="panchanga-fact-value mt-1 truncate text-[12px] font-semibold" title={value}>{value}</p>
     </div>
   );
 }
@@ -1003,13 +1003,13 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
       </div>
 
       <button onClick={onVoice} className="mb-5 flex w-full items-center gap-4 rounded-[22px] bg-[#2d3434] p-5 text-left text-white shadow-lg transition-transform hover:-translate-y-0.5">
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#b9dce2] text-[#30474d]"><Sparkles className="size-5" /></span>
+        <span className="manage-voice-icon grid size-11 shrink-0 place-items-center rounded-full bg-[#b9dce2] text-[#30474d]"><Sparkles className="size-5" /></span>
         <span className="min-w-0 flex-1"><span className="block font-display text-xl">Make a change in plain language</span><span className="mt-0.5 block truncate text-[12px] text-white/50">Try “remind me 10 days from now to book the gas cylinder”</span></span>
         <ChevronRight className="size-5 text-white/35" />
       </button>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <section className="surface-card !p-5 sm:!p-6">
+        <section className="meal-manager-card surface-card !p-5 sm:!p-6">
           <div className="mb-5 flex items-center gap-3"><span className="section-icon"><UtensilsCrossed className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Today’s meals</h2><p className="text-[11px] text-muted-foreground">Tap any meal to change it</p></div></div>
           <div className="space-y-2">
             {data.meals.map((meal) => (
@@ -1022,7 +1022,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           </div>
         </section>
 
-        <section className="surface-card !p-5 sm:!p-6">
+        <section className="shopping-card surface-card !p-5 sm:!p-6">
           <div className="mb-5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="section-icon"><ShoppingBasket className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Shopping list</h2><p className="text-[11px] text-muted-foreground">{openShopping.length} items left</p></div></div></div>
           <form onSubmit={onAddList} className="mb-3 flex items-center gap-2"><Input value={listItem} onChange={(event) => onListItem(event.target.value)} placeholder="Add an item" className="h-10 rounded-xl px-3" /><Button type="submit" disabled={!listItem.trim()} className="size-10 rounded-xl" aria-label="Add item"><Plus /></Button></form>
           <div className="max-h-[260px] space-y-1 overflow-auto pr-1">
@@ -1037,7 +1037,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           </div>
         </section>
 
-        <section className="surface-card !p-5 sm:!p-6">
+        <section className="family-card surface-card !p-5 sm:!p-6">
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-3"><span className="section-icon"><MessageSquareText className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Family board</h2><p className="text-[11px] text-muted-foreground">Short notes everyone can see</p></div></div>
             <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full" aria-label="Add family note by voice"><Mic /></Button>
@@ -1051,7 +1051,7 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           </div>
         </section>
 
-        <section className="surface-card !p-5 sm:!p-6">
+        <section className="timer-card surface-card !p-5 sm:!p-6">
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-3"><span className="section-icon"><TimerReset className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Kitchen timers</h2><p className="text-[11px] text-muted-foreground">Start here or say it naturally</p></div></div>
             <Button onClick={onVoice} variant="ghost" size="icon-sm" className="rounded-full" aria-label="Start timer by voice"><Mic /></Button>
@@ -1060,13 +1060,13 @@ function ManageView({ data, openShopping, openReminders, activeNotes, activeTime
           <div className="space-y-2" aria-live="polite">
             {activeTimers.map((timer) => {
               const remaining = formatTimerRemaining(timer.ends_at, clockNow);
-              return <div key={timer.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${remaining === 'Done' ? 'bg-[#e4d8c3]' : 'bg-background/60'}`}><p className="optical-copy min-w-0 flex-1 truncate text-sm font-semibold">{timer.label}</p><time dateTime={timer.ends_at} className="optical-copy font-display font-bold tabular-nums">{remaining}</time><button onClick={() => onToggle('timer', timer.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Dismiss ${timer.label} timer`}><X className="size-4" /></button></div>;
+              return <div key={timer.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${remaining === 'Done' ? 'timer-done bg-[#e4d8c3]' : 'bg-background/60'}`}><p className="optical-copy min-w-0 flex-1 truncate text-sm font-semibold">{timer.label}</p><time dateTime={timer.ends_at} className="optical-copy font-display font-bold tabular-nums">{remaining}</time><button onClick={() => onToggle('timer', timer.id, true)} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground" aria-label={`Dismiss ${timer.label} timer`}><X className="size-4" /></button></div>;
             })}
             {!activeTimers.length && <p className="py-6 text-center text-sm text-muted-foreground">No timers running.</p>}
           </div>
         </section>
 
-        <section className="surface-card !p-5 sm:!p-6 lg:col-span-2">
+        <section className="reminder-card surface-card !p-5 sm:!p-6 lg:col-span-2">
           <div className="mb-5 flex items-center justify-between"><div className="flex items-center gap-3"><span className="section-icon"><CalendarDays className="size-4" /></span><div><h2 className="font-display text-[22px] font-semibold">Reminders</h2><p className="text-[11px] text-muted-foreground">One-time and repeating, understood naturally</p></div></div><Button onClick={onVoice} variant="outline" size="sm" className="rounded-full"><Plus /> Add naturally</Button></div>
           <div className="grid gap-2 md:grid-cols-2">
             {openReminders.map((reminder) => (
